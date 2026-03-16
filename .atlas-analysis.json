@@ -1,0 +1,111 @@
+{
+  "projectType": "saas",
+  "projectName": "Generative AI for Krita",
+  "projectDescription": "A Krita plugin that integrates AI image generation (Stable Diffusion, Flux) directly into the painting workflow, supporting inpainting, outpainting, ControlNet, and live generation via a local or cloud ComfyUI backend.",
+  "theme": "almond",
+  "primaryColor": "#dec874",
+  "lightColor": "#693608",
+  "darkColor": "#826a38",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Getting Started",
+        "groups": [
+          {
+            "group": "Introduction",
+            "pages": ["introduction", "installation"]
+          },
+          {
+            "group": "Server Setup",
+            "pages": ["server/overview", "server/local-server", "server/comfyui-setup", "server/cloud"]
+          }
+        ]
+      },
+      {
+        "tab": "User Guide",
+        "groups": [
+          {
+            "group": "Core Features",
+            "pages": [
+              "guide/basics",
+              "guide/selections",
+              "guide/live-painting",
+              "guide/upscaling"
+            ]
+          },
+          {
+            "group": "Advanced Features",
+            "pages": [
+              "guide/control-layers",
+              "guide/regions",
+              "guide/prompts",
+              "guide/edit-models",
+              "guide/custom-workflow"
+            ]
+          },
+          {
+            "group": "Customization",
+            "pages": [
+              "guide/styles-presets",
+              "guide/samplers",
+              "guide/models"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Models & Architecture",
+            "pages": [
+              "reference/base-models",
+              "reference/controlnet-modes",
+              "reference/resolutions"
+            ]
+          },
+          {
+            "group": "Troubleshooting",
+            "pages": [
+              "reference/common-issues",
+              "reference/performance"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "reference/contributing",
+              "reference/api-overview"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Inpainting and outpainting with generative fill using selections",
+    "Live Painting mode for real-time AI canvas interpretation",
+    "ControlNet support: Scribble, Line art, Canny, Depth, Pose, Segmentation",
+    "IP-Adapter for reference images, style transfer, and face swap",
+    "Region-based generation with per-layer text prompts",
+    "Upscaling to 4K/8K with tiled diffusion",
+    "Custom ComfyUI workflow integration",
+    "Supports Flux, Stable Diffusion 1.5, XL, and Illustrious models",
+    "Local managed server or cloud generation options",
+    "Job queue with history and preview of previous generations"
+  ],
+  "publicApiSurface": [
+    "WorkflowKind (generate, inpaint, refine, upscale_simple, upscale_tiled, control_image, custom)",
+    "WorkflowInput dataclass",
+    "ControlInput / ControlMode (ControlNet modes)",
+    "RegionInput (layer-based region prompts)",
+    "CheckpointInput (model checkpoint config)",
+    "SamplingInput (sampler, scheduler, CFG, steps)",
+    "InpaintMode / InpaintParams",
+    "UpscaleInput",
+    "ServerMode (managed, external, cloud)",
+    "ServerBackend (cpu, cuda, mps, directml, xpu)",
+    "PerformancePreset (auto, low, medium, high, cloud, custom)",
+    "Style / StyleSettings / SamplerPresets"
+  ]
+}
