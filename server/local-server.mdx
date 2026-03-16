@@ -1,0 +1,115 @@
+---
+title: "Local managed server"
+description: "Let the plugin automatically install and manage a local ComfyUI server for Krita AI Diffusion."
+---
+
+The local managed server option lets the plugin download, install, and run [ComfyUI](https://github.com/comfyanonymous/ComfyUI) on your machine. No manual ComfyUI setup is required.
+
+The current managed server version is **1.48.0**.
+
+## Hardware requirements
+
+| Hardware | Notes |
+|---|---|
+| NVIDIA GPU (GTX 1060 6GB or better) | Recommended. Supported via CUDA on Windows and Linux. |
+| Apple Silicon | Supported via MPS on macOS 14+. |
+| Intel Arc GPU (8 GB or better) | Supported via XPU on Windows and Linux. |
+| AMD GPU | Not supported by managed installation. Use a [custom ComfyUI setup](/server/comfyui-setup) instead. |
+| CPU | Supported, but very slow. |
+
+<Warning>
+  Make sure you are using an up-to-date GPU driver before installation.
+</Warning>
+
+## Installation
+
+<Steps>
+  <Step title="Open the configuration dialog">
+    In the plugin docker, click **Configure**. Select **Local Managed Server** and click **Continue**.
+  </Step>
+
+  <Step title="Choose an installation path">
+    Select a directory where ComfyUI and all models will be installed.
+
+    <Info>
+      AI models can be very large. A minimal installation requires at least 16 GB of free disk space. 50 GB or more is not unusual depending on how many optional model packages you install.
+    </Info>
+  </Step>
+
+  <Step title="Select a backend">
+    Choose the compute backend that matches your hardware.
+
+    <Tabs>
+      <Tab title="Windows / Linux">
+        | Backend | Description |
+        |---|---|
+        | **CUDA** | NVIDIA GPUs — recommended if available |
+        | **DirectML** | Any DirectX 12 GPU (Windows only) |
+        | **XPU** | Intel Arc GPUs |
+        | **CPU** | All hardware, but very slow |
+      </Tab>
+      <Tab title="macOS">
+        | Backend | Description |
+        |---|---|
+        | **MPS** | Apple Silicon via Metal Performance Shaders — default on macOS |
+        | **CPU** | Fallback, very slow |
+      </Tab>
+    </Tabs>
+
+    <Warning>
+      Select the backend **before** clicking Install. Changing it afterwards requires reinstalling.
+    </Warning>
+  </Step>
+
+  <Step title="Select workloads">
+    Choose which model sets to install. Each workload installs a set of recommended models. You can start with a minimal set and add more later.
+  </Step>
+
+  <Step title="Install">
+    Click **Install**. The plugin will download ComfyUI and all selected models. Installation time depends on your internet connection.
+  </Step>
+</Steps>
+
+<Tabs>
+  <Tab title="Windows">
+    <Note>
+      Some packages cannot be installed when running the **Windows Store** or **Steam** versions of Krita. Download Krita directly from [krita.org](https://krita.org/en/download) for full compatibility.
+    </Note>
+  </Tab>
+  <Tab title="Linux">
+    <Note>
+      Some packages cannot be installed when running the **Flatpak** version of Krita. Use the **AppImage** version instead.
+    </Note>
+  </Tab>
+  <Tab title="macOS">
+    <Note>
+      MPS (Metal Performance Shaders) is the default backend on macOS. Requires macOS 14 or later with Apple Silicon.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Performance presets
+
+The plugin configures performance settings automatically based on your hardware. You can also set them manually in the plugin settings.
+
+| Preset | Description | Batch size | Max resolution |
+|---|---|---|---|
+| **Automatic** | Detected from connected device | — | — |
+| **CPU** | CPU-only systems | 1 | 2 MP |
+| **GPU low** | Up to 6 GB VRAM | 2 | 2 MP (tiled VAE enabled) |
+| **GPU medium** | 6 GB to 12 GB VRAM | 4 | 6 MP |
+| **GPU high** | More than 12 GB VRAM | 6 | 8 MP |
+| **Cloud** | Cloud generation | 8 | 6 MP |
+| **Custom** | Manually configured | — | — |
+
+<Tip>
+  If you are unsure which preset to use, leave it on **Automatic**. The plugin will detect your GPU VRAM and apply the appropriate preset when it connects.
+</Tip>
+
+## Managing the server
+
+Once installed, the plugin starts and stops the server automatically when you connect or disconnect. The server runs as a background process on your machine.
+
+To update the server to a newer version, open the configuration dialog and click **Update**.
+
+To install additional models after the initial setup, open the configuration dialog and use the **Individual Packages** tab.

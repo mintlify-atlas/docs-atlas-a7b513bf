@@ -1,0 +1,160 @@
+---
+title: "Performance"
+description: "Performance optimization guide and settings reference for the Krita AI Diffusion plugin"
+---
+
+Generation speed and memory usage depend on hardware, model architecture, resolution, and a set of configurable performance parameters. This page documents all performance-relevant settings and optimization strategies.
+
+## Performance Presets
+
+The `PerformancePreset` enum in `settings.py` provides predefined configurations. Selecting a preset overwrites the individual settings listed below.
+
+| Preset | Batch Size | Resolution Multiplier | Max Pixel Count | Tiled VAE | Target Hardware |
+|--------|------------|----------------------|-----------------|-----------|----------------|
+| `cpu` | 1 | 1.0 | 2 MP | No | CPU only |
+| `low` | 2 | 1.0 | 2 MP | Yes | GPU up to 6 GB VRAM |
+| `medium` | 4 | 1.0 | 6 MP | No | GPU 6–12 GB VRAM |
+| `high` | 6 | 1.0 | 8 MP | No | GPU over 12 GB VRAM |
+| `cloud` | 8 | 1.0 | 6 MP | No | Cloud / high-VRAM servers |
+| `auto` | — | — | — | — | Determined automatically at connection |
+| `custom` | User-defined | User-defined | User-defined | User-defined | Any |
+
+<Note>
+The `auto` preset queries the server on connection and selects an appropriate preset based on detected hardware. It does not overwrite individual settings.
+</Note>
+
+## Performance Settings Fields
+
+All fields are in `PerformanceSettings` (`settings.py`). They can also be set individually when using the `custom` preset.
+
+### `batch_size` (default: `4`)
+
+Maximum number of images to generate in a single GPU pass. Higher values increase throughput on powerful GPUs but require proportionally more VRAM.
+
+The actual batch size is reduced automatically for high-resolution generations:
+```python
+# compute_batch_size in resolution.py
+batch = max(1, min(max_batches, (512 * 512 * max_batches) // (width * height)))
+```
+
+For example, with `batch_size=4` and a 1024×1024 generation, the effective batch is `max(1, 4 * 512² / 1024²) = 1`.
+
+### `resolution_multiplier` (default: `1.0`)
+
+Scaling factor applied to the canvas resolution before generation. Values below `1.0` reduce the generation resolution, improving speed and reducing VRAM at the cost of quality.
+
+| Canvas | Multiplier | Generation Resolution |
+|--------|------------|----------------------|
+| 1024×1024 | 1.0 | 1024×1024 |
+| 1024×1024 | 0.75 | 768×768 |
+| 1024×1024 | 0.5 | 512×512 |
+| 2000×2000 | 0.5 | 1000×1000 |
+
+<Tip>
+You can override the resolution multiplier directly in the plugin's main panel without opening settings. This is useful for quick "draft" generations on a large canvas.
+</Tip>
+
+### `max_pixel_count` (default: `6`, in megapixels)
+
+Hard cap on generation resolution expressed in megapixels (1 MP = 1,000,000 pixels). When the effective resolution after the multiplier exceeds this cap, it is scaled down to fit while preserving aspect ratio.
+
+A value of `0` disables the cap entirely.
+
+### `tiled_vae` (default: `False`)
+
+Processes the VAE encode/decode step in smaller tiles to reduce peak VRAM usage. Useful on GPUs with 4–6 GB when generating at medium resolutions. Adds slight overhead but prevents out-of-memory errors.
+
+### `dynamic_caching` (default: `False`)
+
+Enables First Block Cache — re-uses outputs of unchanged transformer blocks from previous diffusion steps. Speeds up generation by 20–40% on compatible models with minimal quality impact. Currently most effective for Flux-based architectures.
+
+## Backend Selection
+
+The `ServerBackend` enum in `settings.py` selects the GPU compute backend for the ComfyUI server:
+
+| Backend | Platform | Description |
+|---------|----------|-------------|
+| `cuda` | Windows, Linux | NVIDIA GPU via CUDA. Best supported, highest performance. |
+| `mps` | macOS | Apple Silicon via Metal Performance Shaders. Default on macOS. |
+| `directml` | Windows | AMD/Intel GPU via DirectML. Alternative for non-NVIDIA Windows GPUs. |
+| `xpu` | Windows, Linux | Intel GPU via XPU extension. |
+| `cpu` | All | CPU-only inference. Very slow; only for systems without a compatible GPU. |
+
+<Note>
+NVIDIA CUDA has the broadest support and is tested most extensively. Other backends may work but can have reduced feature support or occasional compatibility issues, as they depend on community-maintained ComfyUI extensions.
+</Note>
+
+## VRAM Requirements by Model Architecture
+
+Approximate VRAM requirements for common generation scenarios:
+
+| Architecture | Minimum | Recommended | Notes |
+|---|---|---|---|
+| SD 1.5 | 2 GB | 4–6 GB | Use `low` preset |
+| SDXL | 6 GB | 8–12 GB | Use `medium` preset |
+| Illustrious | 6 GB | 8–12 GB | Same as SDXL |
+| Flux (full) | 12 GB | 16–24 GB | Use GGUF or Nunchaku quantization for lower VRAM |
+| Flux Kontext | 12 GB | 16–24 GB | Edit model, same base as Flux |
+| Flux 2 Klein 4B | 6 GB | 8 GB | Optimized for consumer GPUs |
+| Flux 2 Klein 9B | 12 GB | 16 GB | Higher quality, more VRAM |
+| Z-Image | 8 GB | 12 GB | |
+
+<Tip>
+Flux models marked `[Nunchaku]` in the model list are quantized using the Nunchaku library (NVIDIA only). They run with significantly less VRAM while retaining most quality.
+</Tip>
+
+## Optimization Tips
+
+### Reduce Resolution
+
+Generation time scales super-linearly with resolution (approximately `O(n^1.5)` for diffusion steps). Halving the resolution reduces generation time by roughly 3–4×.
+
+- Use the resolution multiplier (`0.5`–`0.75`) for draft iterations.
+- Work on a smaller canvas and upscale results using the Upscale workspace.
+
+### Use Fewer Steps / Faster Samplers
+
+- The Hyper LoRA (required, installed automatically) enables 4–8 step generation with good quality for SD 1.5 and SDXL.
+- For Flux, the `flux.1-turbo` LoRA reduces the required step count significantly.
+- LCM samplers (SD 1.5, SDXL) can generate reasonable results in 4–8 steps.
+
+### Enable Dynamic Caching
+
+For Flux-based models, enabling `dynamic_caching` in performance settings can reduce generation time by 20–40% with minimal quality loss.
+
+### Tiled VAE
+
+If you are running out of VRAM specifically during the VAE decode step (often manifests as the generation appearing to complete but then crashing), enable `tiled_vae`. This is pre-enabled in the `low` preset.
+
+### Additional ComfyUI Arguments
+
+For hardware-specific issues, you can pass extra arguments to the ComfyUI server via `settings.json`:
+
+```json
+"server_arguments": "--force-fp16 --dont-upcast-attention"
+```
+
+Common arguments:
+- `--force-fp16`: Use FP16 precision throughout (saves VRAM on older NVIDIA GPUs)
+- `--lowvram` / `--novram`: More aggressive VRAM offloading (much slower)
+- `--cpu`: Force CPU inference
+- `--port <number>`: Change the server port (default: 8188)
+
+## Cost Model
+
+The plugin uses an internal cost model to estimate relative generation time. The `WorkflowInput.cost` property computes:
+
+```python
+cost = base_cost(arch) + 10 * (batch * pixels^1.5 * steps) / (2 * 1024^3 * 24)
+```
+
+Base cost by architecture:
+
+| Architecture | Base cost |
+|---|---|
+| SD 1.5 | 1 |
+| SDXL-like | 2 |
+| Flux / Flux 2 | 4 |
+| Z-Image | 6 |
+
+This is used for display purposes and cloud credit estimation, not for any generation decision.

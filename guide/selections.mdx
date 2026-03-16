@@ -1,0 +1,117 @@
+---
+title: "Selections"
+description: "Use Krita selections to restrict AI generation to specific areas — inpaint, fill, expand the canvas, add or remove objects."
+---
+
+Selections are the primary way to apply AI generation to a specific region of the canvas. Drawing a selection transforms the **Generate** button into a targeted **Fill** or **Expand** action, also known as _inpainting_.
+
+## How selections define the generation area
+
+When no selection is active, generation applies to the entire canvas. As soon as a selection exists, the plugin restricts diffusion to that region and uses surrounding pixels as context to blend the result naturally.
+
+The plugin automatically chooses the right operation based on the selection geometry:
+
+- If the selection **spans the full width or full height** of the canvas, the mode is set to **Expand** — the selection reaches to an edge, indicating you want to extend the image outward.
+- Otherwise the mode is set to **Fill** — the selection sits within the canvas, indicating you want to replace or modify existing content.
+
+This logic comes from `detect_inpaint_mode` in the plugin source:
+
+```python
+def detect_inpaint_mode(extent: Extent, area: Bounds):
+    if area.width >= extent.width or area.height >= extent.height:
+        return InpaintMode.expand
+    return InpaintMode.fill
+```
+
+You can always override the automatic choice using the mode dropdown next to the Generate button.
+
+## Making selections in Krita
+
+You can use any of Krita's built-in selection tools:
+
+- **Rectangle selection** (R) — clean rectangular regions, ideal for expanding the canvas.
+- **Freehand selection** (F) — trace around irregular objects.
+- **Contiguous selection** — select by color fill (useful for backgrounds).
+- **Magnetic selection** — snaps to object edges automatically.
+
+<Tip>
+  For AI-assisted object selection, the separate [Krita AI Tools plugin](https://github.com/Acly/krita-ai-tools) adds segmentation-based selection tools.
+</Tip>
+
+## Generation modes
+
+The mode dropdown gives you fine-grained control over how the selected area is handled:
+
+<AccordionGroup>
+  <Accordion title="Fill">
+    General-purpose mode for replacing part of the image with something that blends in. It is biased toward using colors found in the vicinity of the selection and balances flexibility with coherence. Best for most inpainting tasks.
+  </Accordion>
+  <Accordion title="Expand">
+    Designed to extend the canvas at one or more edges. Ignores any existing content inside the selection and instead continues the colors and textures from the selection border outward. Use Krita's crop tool (C) to extend the canvas, then select the blank area and click Expand.
+  </Accordion>
+  <Accordion title="Add Content">
+    Use this mode when adding a new object that doesn't already exist in the image. Provide a text prompt or control layer describing what to add. This mode allows greater deviation from surrounding colors and may not blend as smoothly as Fill.
+  </Accordion>
+  <Accordion title="Remove Content">
+    Removes the selected object and fills the area with a continuation of the surroundings. Ignores existing content inside the selection.
+  </Accordion>
+  <Accordion title="Replace Background">
+    An experimental mode where you select a foreground object. The selected content is preserved and everything outside it is replaced. Provide a text prompt describing the new background.
+  </Accordion>
+</AccordionGroup>
+
+## The strength slider with selections
+
+The strength slider works together with selections:
+
+- At **100% strength**, the button reads **Fill** (or **Expand**) and generates completely new content in the selected area.
+- Below **100%**, the button reads **Refine** and uses the existing content inside the selection as a starting point. Lower values preserve more of the original — useful for adding texture, removing artifacts, or subtle style adjustments.
+
+## Common use cases
+
+<Tabs>
+  <Tab title="Remove an object">
+    <Steps>
+      <Step title="Select the object">Use the freehand or contiguous selection tool to select the object you want to remove.</Step>
+      <Step title="Choose Remove Content">Select **Remove Content** from the mode dropdown.</Step>
+      <Step title="Generate">Click Generate. The plugin fills the area with a continuation of the surroundings.</Step>
+    </Steps>
+  </Tab>
+  <Tab title="Add an object">
+    <Steps>
+      <Step title="Draw a selection">Select the area where the new object should appear.</Step>
+      <Step title="Choose Add Content">Select **Add Content** from the mode dropdown.</Step>
+      <Step title="Describe the object">Enter a prompt describing what to add (e.g., "a red umbrella").</Step>
+      <Step title="Generate">Click Generate.</Step>
+    </Steps>
+  </Tab>
+  <Tab title="Expand the canvas">
+    <Steps>
+      <Step title="Extend the canvas">Use Krita's crop tool (C) to drag the canvas boundaries outward.</Step>
+      <Step title="Select blank area">Select the empty region that was added.</Step>
+      <Step title="Generate">The mode will automatically switch to Expand. Click Generate to fill in the extension.</Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Feathering for smooth blends
+
+Hard selection edges can produce visible transitions between generated and original content. Two settings in **Settings > Diffusion** control how the mask is softened:
+
+- **Selection Feather** — controls the falloff area of the denoising mask, defined as a percentage of the selection size. A larger value produces a more gradual blend.
+- **Selection Blend** — controls the size of the alpha-composition blend mask in pixels.
+
+Setting both to 0 disables automatic mask processing entirely, giving you full manual control.
+
+<Note>
+  The feather transition area is scaled by strength. At 50% strength the transition is half the size it would be at 100%, because low-strength refinement tends to blend naturally on its own.
+</Note>
+
+## Custom generation
+
+For scenarios none of the preset modes cover, the **Custom** option lets you configure all inpainting parameters manually:
+
+- **Seamless** — when enabled, an inpaint model ensures generated content blends with the surrounding image.
+- **Focus** — when enabled, the prompt describes only the selected area rather than the entire context region.
+- **Fill mode** — controls how the selected area is pre-processed before generation: `None`, `Neutral`, `Blur`, `Border`, or `Inpaint` (uses a small AI model to pre-fill the area).
+- **Context area** — choose between automatic context, selection bounds only, entire image, or a custom layer for full control.

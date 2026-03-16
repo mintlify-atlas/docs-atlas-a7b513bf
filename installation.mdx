@@ -1,0 +1,86 @@
+---
+title: "Installation"
+description: "Install the Generative AI for Krita plugin and connect it to a generation backend."
+---
+
+This guide walks you through downloading and installing the plugin, enabling it in Krita, and choosing a generation backend.
+
+## Prerequisites
+
+- **Krita 5.2.0 or newer** — download from [krita.org](https://krita.org/en/download)
+- **Operating system**: Windows, Linux, or macOS
+
+## Installing the plugin
+
+<Steps>
+  <Step title="Download the plugin">
+    Download the [latest release](https://github.com/Acly/krita-ai-diffusion/releases/latest) ZIP archive. Remember where you save it.
+  </Step>
+
+  <Step title="Import into Krita">
+    Open Krita and go to **Tools > Scripts > Import Python Plugin from File...**
+
+    Select the ZIP file you downloaded. When prompted to enable the plugin, press **Yes**.
+  </Step>
+
+  <Step title="Restart Krita">
+    Krita must be restarted for the plugin to load. Close and reopen it.
+  </Step>
+
+  <Step title="Enable the docker">
+    Create a new document or open an existing image.
+
+    Enable the plugin docker from the menu bar: **Settings > Dockers > AI Image Generation**.
+  </Step>
+
+  <Step title="Open configuration">
+    The plugin docker is now visible. Click **Configure** to set up a generation backend.
+  </Step>
+</Steps>
+
+<Note>
+  If you encounter problems, check the [FAQ and common issues](https://docs.interstice.cloud/common-issues). For help, reach out via [Discussions](https://github.com/Acly/krita-ai-diffusion/discussions) or [Discord](https://discord.gg/pWyzHfHHhU). Official Krita channels do not provide support for this plugin.
+</Note>
+
+## Choose a backend
+
+After clicking **Configure**, you will see three server options. Choose the one that fits your setup.
+
+<Columns cols={3}>
+  <Card title="Online Service" icon="cloud" href="/server/cloud">
+    Generate images using cloud GPU workers. No local hardware required. An account is needed.
+  </Card>
+  <Card title="Local Managed Server" icon="server" href="/server/local-server">
+    The plugin automatically downloads and installs ComfyUI on your machine. Requires a compatible GPU.
+  </Card>
+  <Card title="Custom ComfyUI Server" icon="wrench" href="/server/comfyui-setup">
+    Connect to an existing ComfyUI installation, local or remote. Most flexible option.
+  </Card>
+</Columns>
+
+## Hardware requirements
+
+To run image generation locally, a dedicated GPU is recommended.
+
+| Hardware | Support |
+|---|---|
+| NVIDIA GPU | Supported via CUDA (Windows and Linux) |
+| Apple Silicon | Supported via MPS on macOS 14+ |
+| Intel Arc GPU | Supported via XPU (Windows and Linux) |
+| AMD GPU | Supported, but requires a custom ComfyUI setup |
+| CPU | Supported, but very slow |
+
+<Warning>
+  At least **6 GB VRAM** is recommended for NVIDIA GPUs. Generating images with less memory will be slow or may fail entirely.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Server options overview" icon="list" href="/server/overview">
+    Compare the three backend options side by side.
+  </Card>
+  <Card title="Local managed server" icon="download" href="/server/local-server">
+    Let the plugin install and manage ComfyUI for you.
+  </Card>
+</CardGroup>

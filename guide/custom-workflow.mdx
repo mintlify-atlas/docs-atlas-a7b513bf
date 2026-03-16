@@ -1,0 +1,183 @@
+---
+title: "Custom ComfyUI Workflows"
+description: "How to import, configure, and run custom ComfyUI workflows from within Krita"
+---
+
+
+Custom workflows let you design node graphs in ComfyUI and run them directly from Krita. You can exchange images, layers, masks, and selections between Krita and the workflow, and expose parameters as a Krita-generated UI.
+
+## Requirements
+
+- A managed or custom (local/remote) ComfyUI server installation.
+- Plugin version 1.26.0 or later.
+- The workflow must contain at least a `Krita Output` node.
+
+Anyone can **use** workflows shared by others by importing them. **Authoring** workflows requires familiarity with ComfyUI.
+
+## The Custom Workspace
+
+Custom workflows run from the **Graph** workspace in the plugin docker. Workflows are stored in the `workflows` folder in your user data directory (`<appdata>/krita/ai_diffusion/workflows`). Three sources are supported:
+
+| Source | Icon | Description |
+|---|---|---|
+| Local | File JSON | Workflows saved as `.json` files in the workflows folder |
+| Remote | Web connection | Workflows loaded from the connected ComfyUI web UI |
+| Document | Krita file | Workflows embedded in the current `.kra` document |
+
+## Importing a Workflow
+
+<Steps>
+  <Step title="Obtain a workflow file">
+    Download a ComfyUI workflow exported with **Export (API)** format (a `.json` file). The standard _Export_ format also works to some extent but is not recommended — UI-specific features like node bypass do not survive the import.
+  </Step>
+  <Step title="Click Import File">
+    In the Graph workspace, click the **Import File** button and select the `.json` file. The workflow is validated and saved to the workflows folder.
+  </Step>
+  <Step title="Select the workflow">
+    The imported workflow appears in the dropdown. Select it to load it. The plugin generates a parameter UI from the workflow's special nodes.
+  </Step>
+</Steps>
+
+<Note>
+  To enable **Export (API)** in ComfyUI, activate Dev Mode in ComfyUI settings first.
+</Note>
+
+## Connecting to the ComfyUI Web UI
+
+You can design a workflow in ComfyUI's web interface and load it into Krita without saving a file:
+
+<Steps>
+  <Step title="Open the web UI">
+    Click the **ComfyUI Web** button in the Graph workspace. Your browser opens and navigates to the connected ComfyUI instance.
+  </Step>
+  <Step title="Add a Krita Output node">
+    In the web UI, add at least one `Krita Output` node to your workflow. The workflow then becomes available in Krita's dropdown.
+  </Step>
+  <Step title="Select from the dropdown">
+    Choose the remote workflow from the dropdown in Krita. Changes made in the web UI synchronize automatically. However, you cannot execute workflows from the web UI — only from Krita.
+  </Step>
+</Steps>
+
+## Running a Workflow
+
+Once a workflow is selected, click **Generate** to run it. Three generation modes are available via the mode selector:
+
+| Mode | Description |
+|---|---|
+| **Regular** | Single-shot generation |
+| **Live** | Continuously re-runs at a 100ms poll rate whenever inputs change |
+| **Animation** | Transfers all keyframes from the Krita timeline to batch-capable nodes |
+
+## Exposing Parameters
+
+The plugin generates a custom UI for each workflow based on special nodes. Parameters are defined by adding these nodes in the ComfyUI web UI:
+
+### Parameter Types
+
+Add an `ETN_Parameter` node and set its `type` input to one of:
+
+| Type value | `ParamKind` | UI widget |
+|---|---|---|
+| `number (integer)` | `number_int` | Integer spin box with min/max |
+| `number` | `number_float` | Float spin box with min/max |
+| `toggle` | `toggle` | Checkbox |
+| `text` | `text` | Text input |
+| `prompt (positive)` | `prompt_positive` | Prompt editor with LoRA/wildcard support |
+| `prompt (negative)` | `prompt_negative` | Prompt editor |
+| `choice` | `choice` | Dropdown (options inferred from the connected node's input definitions) |
+
+### Krita-Specific Nodes
+
+| Node | `ParamKind` | Description |
+|---|---|---|
+| `ETN_KritaImageLayer` | `image_layer` | Dropdown to select an RGB layer from the current document |
+| `ETN_KritaMaskLayer` | `mask_layer` | Dropdown to select a mask or selection layer |
+| `ETN_KritaStyle` | `style` | Dropdown to select a plugin Style; loads checkpoint, VAE, CLIP, and LoRAs |
+| `ETN_KritaStyleAndPrompt` | — | Style node that also pulls in the plugin's prompt, wildcards, and LoRA tags (limited to 1 per workflow) |
+| `ETN_KritaCanvas` | — | Provides the current canvas image and resolution |
+| `ETN_KritaSelection` | — | Provides the current selection as a mask with configurable crop context |
+
+### Parameter Order and Grouping
+
+Prefix parameter names with a numeral to control display order: `1. My Parameter`, `2. Another`. Numbers are not shown in the UI but determine sort order.
+
+Use a forward slash to create groups: `My Group/My Parameter`. Groups themselves can also be ordered with a numeral prefix: `1. Settings/Strength`.
+
+## The CustomWorkflowInput API Object
+
+When the plugin dispatches a custom workflow job, it creates a `WorkflowInput` with `kind = WorkflowKind.custom` and a `CustomWorkflowInput` payload:
+
+```python
+@dataclass
+class CustomWorkflowInput:
+    workflow: dict              # the raw ComfyUI graph JSON
+    params: dict[str, Any]     # resolved parameter values
+    positive_evaluated: str    # wildcard-evaluated positive prompt
+    negative_evaluated: str    # wildcard-evaluated negative prompt
+    models: CheckpointInput | None    # from ETN_KritaStyle if present
+    sampling: SamplingInput | None    # from ETN_KritaStyle if present
+```
+
+Parameter values are collected by `collect_parameters()`, which resolves layer references to actual pixel data, style names to `CustomStyleInput` objects, and falls back to defaults for missing values.
+
+## Krita Output Node
+
+The `Krita Output` node receives the images to send back to Krita:
+
+| Input | Description |
+|---|---|
+| `images` | Single image or batch |
+| `offset x/y` | Optional pixel offset for canvas insertion |
+| `name` | Optional name for the created Krita layer |
+| `batch mode` | `images`, `animation`, `layers`, or `default` |
+| `resize canvas` | Resize the Krita canvas to match the output |
+
+## Krita Selection Node
+
+The `ETN_KritaSelection` node provides the current Krita selection:
+
+| Input | Description |
+|---|---|
+| `context` | `entire_image`, `mask_bounds`, or `automatic` (uses padding from Krita settings) |
+| `padding` | Extra pixels to extend the crop area |
+
+| Output | Description |
+|---|---|
+| `mask` | Selection as transparency mask (all 1s when no selection) |
+| `active` | Boolean: whether a selection exists |
+| `offset x/y` | Pixel offset of the cropped area |
+
+<Note>
+  Connect `offset x/y` from the selection node to the `Krita Output` node to correctly position the result on the canvas when working with cropped selections.
+</Note>
+
+## Animations
+
+In **Generate Animation** mode, animation-aware nodes send and receive keyframe batches:
+
+- `ETN_KritaImageLayer` — sends all keyframes in the playback range as an image batch.
+- `ETN_KritaMaskLayer` — sends all keyframes as a mask batch.
+- `ETN_KritaCanvas` — does **not** support animations; always provides the current view.
+- `ETN_KritaOutput` — receives a batch and creates a new animated layer.
+
+## Limitations
+
+<Warning>
+  Workflows containing multiple `ETN_KritaStyleAndPrompt` nodes are invalid. Only one is allowed per workflow. A validation error is shown in the plugin UI.
+</Warning>
+
+<Accordion title="Dev Mode required for API export">
+  The ComfyUI **Export (API)** option is only available when Dev Mode is enabled in ComfyUI settings. The standard Export option works partially but may lose bypass states and other UI-specific node configurations.
+</Accordion>
+
+<Accordion title="Output resolution must be a multiple of 8">
+  Diffusion models output resolutions that are multiples of 8, 16, or 64. If the Krita canvas resolution does not match, add a crop or resize node before `Krita Output` to avoid dimension mismatches.
+</Accordion>
+
+<Accordion title="Some samplers are not available by name">
+  Certain samplers like AlignYourSteps are not available as named inputs from the `ETN_KritaStyle` node. If your workflow requires them, model the sampler configuration explicitly in the workflow rather than relying on the style's sampler settings.
+</Accordion>
+
+<Accordion title="Workflow not found after disconnect">
+  Workflow IDs are persisted with the document. If the plugin is connected to a different server than when the workflow was created, the workflow may not be found immediately. It will reload once the correct server is connected.
+</Accordion>

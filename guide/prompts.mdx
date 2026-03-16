@@ -1,0 +1,163 @@
+---
+title: "Text Prompts"
+description: "Text prompt syntax reference: LoRAs, wildcards, layer references, comments, emphasis, and style merging"
+---
+
+
+Prompts are the text instructions that tell the model what to generate. The plugin extends standard prompt syntax with LoRA tags, wildcards, layer references, and comment support.
+
+## Basic Syntax
+
+Prompts should be written in English and contain words separated by spaces, commas, or newlines. Most punctuation is passed through as-is or ignored.
+
+### Emphasis
+
+Individual words or phrases can be weighted using parentheses:
+
+| Syntax | Effect |
+|---|---|
+| `(word)` | Increases weight to 1.1 |
+| `(phrase:1.3)` | Sets weight to 1.3 |
+| `(word:0.8)` | Decreases weight to 0.8 |
+
+Use **Ctrl+Up** / **Ctrl+Down** in the text editor to increase or decrease the weight of the word or selection under the cursor.
+
+### Negative Prompt
+
+The negative prompt tells the model what to avoid. It is exposed in the plugin docker only when enabled in Interface settings. Negative prompts are only applied for architectures that support CFG guidance (SD 1.5, SDXL, Illustrious). For Flux models, the negative prompt field is disabled.
+
+## Comments
+
+Everything after a `#` character on a line is stripped before the prompt is sent to the model. This is handled by `strip_prompt_comments()`:
+
+```python
+def strip_prompt_comments(prompt: str):
+    """Strip comments (text after #) from the prompt, unless the # is escaped."""
+```
+
+A `#` preceded by a backslash (`\#`) is kept as a literal `#`.
+
+```
+a songbird on a tree branch # at sunset
+# dark storm clouds
+a sunny day
+```
+
+The above sends: `a songbird on a tree branch a sunny day`
+
+## LoRA Syntax
+
+LoRAs can be activated inline in the prompt using angle-bracket tags. The plugin parses these with `extract_loras()`, removes the tags from the final prompt text, and passes the LoRA weights to the server separately.
+
+```
+<lora:name>
+<lora:name:strength>
+```
+
+| Syntax | Effect |
+|---|---|
+| `<lora:food_photography>` | Loads `food_photography.safetensors` at its default weight |
+| `<lora:food_photography:0.5>` | Loads it at weight 0.5 |
+| `<lora:food_photography:-1.0>` | Applies it with a negative weight |
+
+The name lookup is case-insensitive and matches against both the filename stem and the display name. Auto-completion is available in the text editor.
+
+<Note>
+  LoRA tags can appear anywhere in the prompt text. They are extracted and removed before the prompt is sent to the model.
+</Note>
+
+<Warning>
+  If a LoRA name does not match any available file, generation will fail with an error. Check the exact filename in the LoRA list.
+</Warning>
+
+## Wildcard Syntax
+
+Wildcards randomly select one option from a pipe-separated list enclosed in curly braces. Evaluation is handled by `eval_wildcards()`:
+
+```python
+_pattern_wildcard = re.compile(r"(\{[^{}]+\|[^{}]+\})")
+```
+
+```
+a {red|blue|green} car parked {on the street|underneath a tree}
+```
+
+One option per wildcard is chosen at generation time. The selection is seeded by the job's random seed, so:
+- The same seed always selects the same options.
+- Different seeds produce different combinations.
+- Wildcard evaluation runs up to 10 passes to resolve nested wildcards.
+
+<Tip>
+  Enqueue multiple generations with different seeds to explore wildcard combinations. The tooltip on each result shows which options were selected, and you can copy the evaluated prompt from any result.
+</Tip>
+
+## Layer References
+
+A Krita layer can be referenced directly in the prompt using `<layer:name>` syntax. This is equivalent to adding a Reference control layer for that layer. The tag is extracted by `extract_layers()`:
+
+```python
+_pattern_layer = re.compile(r"<layer:([^>]+)>", re.IGNORECASE)
+```
+
+Each `<layer:name>` tag is replaced with a placeholder like `Picture 1`, `Picture 2`, etc. in the evaluated prompt. The layer names are then used to attach the corresponding Krita layer images as reference inputs.
+
+```
+Put the cat in <layer:cat photo> next to the dog.
+```
+
+For **Qwen Edit 2509/2511** models, the picture reference is meaningful in the text (`Picture 1`, `Picture 2`, …). For other models the placeholder is less meaningful but the image is still passed as a reference input.
+
+Auto-completion is available in the text editor for layer names.
+
+## Style Prompt Merging
+
+The style's prompt template is merged with the document prompt via `merge_prompt()`:
+
+```python
+def merge_prompt(prompt: str, style_prompt: str, language: str = ""):
+    if style_prompt == "":
+        return prompt
+    elif "{prompt}" in style_prompt:
+        return style_prompt.replace("{prompt}", prompt)
+    elif prompt == "":
+        return style_prompt
+    return f"{prompt}, {style_prompt}"
+```
+
+- If the style contains `{prompt}`, the document prompt is inserted at that position.
+- Otherwise the document prompt is prepended with a comma separator.
+- An empty document prompt returns just the style prompt.
+
+## Prompt Translation
+
+Automatic translation from non-English languages can be enabled in Interface settings. When active:
+
+- A language indicator appears in the text input box.
+- Click the indicator to temporarily disable translation (shows `EN`).
+- Ctrl+Click to immediately translate and replace the current text (requires local server).
+
+Language directives can be mixed inline using `lang:XX` syntax:
+
+```
+lang:en origami paperwork, lang:zh 狐狸和鹤, lang:en mountain view
+```
+
+Translation applies to document prompts (including region prompts and negative prompts). It does **not** apply to Style settings text.
+
+<Note>
+  Chinese models like Qwen understand Chinese natively. It is recommended to use Chinese input directly without enabling translation when using those models.
+</Note>
+
+## Tips
+
+<Accordion title="Prompting for inpainting">
+  When inpainting (filling a selected area), describe only the content of the selected area — not the entire scene. The existing image context is already provided to the model. Overly detailed descriptions of surrounding areas can cause artifacts at the inpaint boundary.
+</Accordion>
+
+<Accordion title="Style consistency across regions">
+  Use the root prompt to establish style, medium, and quality tags that apply to all regions. Per-region prompts should focus only on the specific subject in that area. This avoids repeating the same style tags in every region.
+</Accordion>
+
+<Accordion title="Combining LoRAs and wildcards">
+  LoRA tags and wildcards can coexist in the same prompt: `a {portrait|full body} shot <lora:my_style:0.8>`. The wildcard is evaluated per seed, but the LoRA is loaded regardless of which wildcard option is chosen.
+</Accordion>

@@ -1,0 +1,317 @@
+---
+title: "API Overview"
+description: "Internal Python API reference for developers extending or integrating with the Krita AI Diffusion plugin"
+---
+
+This page documents the internal Python API used to build and dispatch diffusion workflows. It is intended for developers who want to extend the plugin, write custom workflows, or understand how the plugin communicates with ComfyUI.
+
+<Note>
+This is an internal API that may change between plugin versions. It is not a public stable interface.
+</Note>
+
+## Workflow System Overview
+
+The plugin's generation pipeline follows this flow:
+
+```
+Krita UI
+  → WorkflowInput (api.py)         # declarative job description
+  → workflow.py functions           # translate to ComfyWorkflow
+  → ComfyWorkflow (comfy_workflow.py) # ComfyUI prompt graph builder
+  → ComfyUI HTTP API                # execution on the server
+```
+
+## WorkflowKind
+
+The `WorkflowKind` enum in `api.py` identifies the type of generation job:
+
+| Value | Name | Description |
+|-------|------|-------------|
+| `0` | `generate` | Text-to-image generation (no input image) |
+| `1` | `inpaint` | Full-strength inpainting with mask |
+| `2` | `refine` | Img2img refinement of the full canvas |
+| `3` | `refine_region` | Img2img refinement within a selection |
+| `4` | `upscale_simple` | Single-pass upscale using a super-resolution model |
+| `5` | `upscale_tiled` | Tiled upscale for large images |
+| `6` | `control_image` | Generate a ControlNet preprocessor output image |
+| `7` | `custom` | Custom workflow passthrough |
+
+## WorkflowInput
+
+The top-level dataclass that describes a complete generation job:
+
+```python
+@dataclass
+class WorkflowInput:
+    kind: WorkflowKind
+    images: ImageInput | None = None
+    models: CheckpointInput | None = None
+    sampling: SamplingInput | None = None
+    conditioning: ConditioningInput | None = None
+    inpaint: InpaintParams | None = None
+    crop_upscale_extent: Extent | None = None
+    upscale: UpscaleInput | None = None
+    control_mode: ControlMode = ControlMode.reference
+    batch_count: int = 1
+    color_match: float = 0.0
+    nsfw_filter: float = 0.0
+    custom_workflow: CustomWorkflowInput | None = None
+```
+
+`WorkflowInput` is serializable to/from a dictionary via `to_dict()` and `from_dict()`. Images are serialized as indexed references into a packed binary blob.
+
+### Key Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `extent` | `ExtentInput` | Shorthand for `images.extent` |
+| `image` | `Image` | Shorthand for `images.initial_image` |
+| `upscale_factor` | `float` | `target.width / input.width` |
+| `diffusion_extent` | `Extent` | Effective resolution for diffusion (desired, or cropped upscale extent) |
+| `merged_prompt` | `str` | All prompts (style + positive + regions) concatenated |
+| `passes_count` | `int` | Number of passes (tiles × 2 for tiled upscale, else batch_count) |
+| `cost` | `int` | Relative cost estimate for display / cloud credit usage |
+
+## Input Dataclasses
+
+### `ExtentInput`
+
+Four resolution "spaces" describing how the image is scaled through the pipeline:
+
+```python
+@dataclass
+class ExtentInput:
+    input: Extent    # resolution of input image and mask
+    initial: Extent  # resolution for initial generation pass
+    desired: Extent  # resolution for high-res refinement pass
+    target: Extent   # target resolution in canvas (may not be a multiple of 8)
+```
+
+### `ImageInput`
+
+Input images for the workflow:
+
+```python
+@dataclass
+class ImageInput:
+    extent: ExtentInput
+    initial_image: Image | None = None  # input for img2img / inpaint
+    hires_image: Image | None = None    # image for hi-res refinement pass
+    hires_mask: Image | None = None     # mask for hi-res pass
+    layer_count: int = 1                # number of input layers (layered models)
+```
+
+### `CheckpointInput`
+
+Model and checkpoint configuration:
+
+```python
+@dataclass
+class CheckpointInput:
+    checkpoint: str              # checkpoint filename
+    version: Arch = Arch.sd15    # model architecture
+    vae: str = ""                # optional VAE override
+    loras: list[LoraInput] = []  # LoRA weights to apply
+    clip_skip: int = 0           # CLIP skip layers
+    v_prediction_zsnr: bool = False  # zero-terminal SNR for v-prediction
+    rescale_cfg: float = 0.7     # CFG rescale factor
+    self_attention_guidance: bool = False
+    dynamic_caching: bool = False
+    tiled_vae: bool = False
+```
+
+### `SamplingInput`
+
+Sampler and scheduler configuration:
+
+```python
+@dataclass
+class SamplingInput:
+    sampler: str       # sampler name (e.g., "euler", "dpm_2")
+    scheduler: str     # scheduler name (e.g., "karras", "simple")
+    cfg_scale: float   # classifier-free guidance scale
+    total_steps: int   # total number of diffusion steps
+    start_step: int = 0  # step to start from (for img2img strength)
+    seed: int = 0
+```
+
+Derived properties:
+- `actual_steps`: `total_steps - start_step`
+- `denoise_strength`: `actual_steps / total_steps`
+
+### `ControlInput`
+
+A single control layer:
+
+```python
+@dataclass
+class ControlInput:
+    mode: ControlMode           # which control mode to use
+    image: Image | None = None  # preprocessed control image
+    strength: float = 1.0       # control influence (0.0–1.0)
+    range: tuple[float, float] = (0.0, 1.0)  # step range to apply control
+```
+
+### `ConditioningInput`
+
+Text prompt and control layers:
+
+```python
+@dataclass
+class ConditioningInput:
+    positive: str
+    negative: str = ""
+    style: str = ""                     # style prompt prefix
+    control: list[ControlInput] = []
+    regions: list[RegionInput] = []
+    language: str = ""                  # for prompt translation
+    edit_reference: bool = False        # use input image as conditioning reference
+```
+
+### `RegionInput`
+
+A regional prompt with optional per-region control layers:
+
+```python
+@dataclass
+class RegionInput:
+    mask: Image
+    bounds: Bounds
+    positive: str
+    control: list[ControlInput] = []
+    loras: list[LoraInput] = []
+```
+
+### `InpaintParams`
+
+Inpainting-specific parameters:
+
+```python
+@dataclass
+class InpaintParams:
+    mode: InpaintMode       # automatic, fill, expand, add_object, etc.
+    target_bounds: Bounds   # bounds of the area to inpaint
+    fill: FillMode = FillMode.neutral  # how to fill masked area before generation
+    grow: int = 0           # pixels to grow mask before inpainting
+    feather: int = 0        # pixels to feather mask edges
+    blend: int = 0          # blend transition width
+    use_inpaint_model: bool = False    # use dedicated inpaint ControlNet
+    use_condition_mask: bool = False
+    use_reference: bool = False        # include surrounding image as reference
+```
+
+`InpaintMode` values: `automatic`, `fill`, `expand`, `add_object`, `remove_object`, `replace_background`, `custom`.
+
+### `UpscaleInput`
+
+```python
+@dataclass
+class UpscaleInput:
+    model: str = ""    # upscale model filename; empty = tiled refinement only
+    tile_overlap: int = -1  # tile overlap in pixels (-1 = auto)
+```
+
+### `LoraInput`
+
+```python
+@dataclass
+class LoraInput:
+    name: str
+    strength: float
+    storage_id: str = ""  # base64-encoded SHA-256 hash for cloud storage lookup
+```
+
+## ComfyWorkflow
+
+`ComfyWorkflow` in `comfy_workflow.py` is a builder for the ComfyUI prompt graph (the JSON structure sent to the `/prompt` API endpoint).
+
+```python
+class ComfyWorkflow:
+    root: dict[str, dict]   # the raw prompt graph
+    node_count: int         # monotonically increasing node ID counter
+    sample_count: int       # number of KSampler nodes added
+    node_defs: ComfyObjectInfo  # server node definitions for validation
+```
+
+### ComfyNode
+
+Each node in the graph is represented as a `ComfyNode` named tuple:
+
+```python
+class ComfyNode(NamedTuple):
+    id: int
+    type: str
+    inputs: dict[str, Input]
+```
+
+Where `Input = int | float | bool | str | Output` and `Output = NamedTuple(node: int, output: int)` represents a connection from another node's output slot.
+
+### Run Modes
+
+`ComfyRunMode` controls how images are transferred:
+
+| Mode | Description |
+|------|-------------|
+| `runtime` | Same-process execution; images transferred in memory |
+| `server` | Remote server; images transferred via base64 or WebSocket |
+
+## Workflow Builder Functions
+
+Top-level functions in `workflow.py` translate a `WorkflowInput` into a `ComfyWorkflow`:
+
+| Function | Description |
+|----------|-------------|
+| `sampling_from_style(style, strength, is_live)` | Build a `SamplingInput` from a `Style` object |
+| `detect_inpaint_mode(extent, area)` | Determine whether to use `fill` or `expand` inpaint mode |
+| `generate_seed()` | Generate a random 32-bit integer seed |
+
+The main workflow dispatch (in `workflow.py`) takes a `WorkflowInput` and routes to the appropriate sub-workflow based on `WorkflowKind`.
+
+## Serialization
+
+`WorkflowInput` is fully serializable for transmission to remote servers (cloud mode) or logging:
+
+```python
+# Serialize (images encoded as base64 or binary blob)
+data = workflow_input.to_dict(image_format=ImageFileFormat.webp)
+
+# Deserialize
+workflow_input = WorkflowInput.from_dict(data)
+```
+
+The `Serializer` and `Deserializer` classes in `api.py` handle recursive dataclass traversal. Images are extracted into an `ImageCollection` and referenced by index in the serialized form. The binary image blob and offset table are stored under the `"image_data"` key.
+
+## Custom Workflow Passthrough
+
+The `WorkflowKind.custom` kind bypasses the standard workflow builder and passes a raw ComfyUI workflow graph directly:
+
+```python
+@dataclass
+class CustomWorkflowInput:
+    workflow: dict         # raw ComfyUI prompt graph
+    params: dict[str, Any] # parameter substitutions
+    positive_evaluated: str = ""
+    negative_evaluated: str = ""
+    models: CheckpointInput | None = None
+    sampling: SamplingInput | None = None
+```
+
+The `ComfyWorkflow.import_graph()` static method can import an existing ComfyUI UI workflow (the format used by the web UI) and convert it to the API prompt format used internally.
+
+## Required Custom Nodes
+
+The plugin requires four custom node packages to be installed on the ComfyUI server:
+
+| Package | Folder | Key Nodes |
+|---------|--------|-----------|
+| ControlNet Preprocessors | `comfyui_controlnet_aux` | `InpaintPreprocessor`, `DepthAnythingV2Preprocessor` |
+| IP-Adapter | `ComfyUI_IPAdapter_plus` | `IPAdapterModelLoader`, `IPAdapter` |
+| External Tooling Nodes | `comfyui-tooling-nodes` | `ETN_LoadImageCache`, `ETN_SaveImageCache`, `ETN_Translate` |
+| Inpaint Nodes | `comfyui-inpaint-nodes` | `INPAINT_LoadFooocusInpaint`, `INPAINT_ShrinkMask`, `INPAINT_StabilizeMask`, `INPAINT_ColorMatch` |
+
+Optional node packages that unlock additional functionality:
+
+| Package | Folder | Purpose |
+|---------|--------|---------|
+| GGUF | `ComfyUI-GGUF` | Quantized Flux models (`UnetLoaderGGUF`, `DualCLIPLoaderGGUF`) |
+| Nunchaku | `ComfyUI-nunchaku` | Fast quantized Flux models (`NunchakuFluxDiTLoader`) |

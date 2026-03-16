@@ -1,0 +1,196 @@
+---
+title: "Samplers and schedulers"
+description: "Configure sampler presets, CFG scale, step counts, and denoise strength for generation and Live mode."
+---
+
+Image generation works by running a diffusion process over multiple discrete steps. Starting from noise, each step removes a predicted portion of noise until a clear image emerges. The **sampler** controls the mathematical strategy used at each step. The **scheduler** controls how much noise is removed per step.
+
+The combination of sampler, scheduler, step count, and CFG scale is packaged into a **sampler preset** and stored in the active [style](/guide/styles-presets).
+
+## Built-in presets
+
+The following presets ship with the plugin:
+
+| Preset name | Sampler | Scheduler | Default steps | Default CFG | Use case |
+|---|---|---|---|---|---|
+| Default - DPM++ 2M | dpmpp_2m | karras | 20 | 7.0 | Standard SD 1.5 / SDXL checkpoints |
+| Alternative - Euler A | euler_ancestral | normal | 20 | 6.0 | Non-realistic or stylized content |
+| Creative - DPM++ 2M SDE | dpmpp_2m_sde_gpu | karras | 20 | 6.0 | More variation and creative freedom |
+| Fast - UniPC BH2 | uni_pc_bh2 | gits | 12 | 4.0 | Faster generation with some quality trade-off |
+| Euler beta | euler | beta | 20 | 5.5 | Qwen and general-purpose |
+| RES multistep simple | res_multistep | simple | 20 | 4.0 | General quality |
+| Turbo/Lightning Merge - DPM++ SDE | dpmpp_sde_gpu | karras | 6 | 2.0 | Turbo and Lightning merge checkpoints |
+| Lightning Merge - Euler A Uniform | euler_ancestral | sgm_uniform | 8 | 1.5 | Lightning merge checkpoints |
+| Realtime - Hyper | euler | sgm_uniform | 8 | 3.5 | Live mode (SD 1.5 / SDXL) |
+| SD3 - DPM++ 2M Uniform | dpmpp_2m | sgm_uniform | 24 | 5.0 | Stable Diffusion 3 |
+| Flux - Euler simple | euler | simple | 20 | 1.0 | Flux Dev, Schnell, Chroma, Z-Image |
+| Flux - Turbo | euler | simple | 8 | 1.0 | Flux Live mode (uses turbo LoRA) |
+| Flux 2 - Euler | euler | flux2 | 20 | 5.0 | Flux 2 Klein models |
+
+<Note>
+Presets `Realtime - LCM` and `Realtime - Lightning` exist for backwards compatibility but are hidden by default. They appear in the dropdown only if a loaded style references them.
+</Note>
+
+## Choosing a preset
+
+<Tabs>
+  <Tab title="Regular checkpoints">
+    For most SD 1.5 and SDXL checkpoints:
+
+    - **Default - DPM++ 2M**: converges quickly, stable across step counts. Good starting point.
+    - **Creative - DPM++ 2M SDE**: introduces stochastic noise per step, less deterministic but more variety.
+    - **Alternative - Euler A**: recommended for anime, illustration, or non-realistic styles.
+    - **Fast - UniPC BH2**: fewer steps needed, trades some quality for speed.
+  </Tab>
+  <Tab title="Turbo and Lightning checkpoints">
+    Checkpoints with "Turbo" or "Lightning" in their name are trained for fewer steps:
+
+    - **Turbo/Lightning Merge - DPM++ SDE**: required by most of these checkpoints.
+    - **Lightning Merge - Euler A Uniform**: faster option for Lightning-type checkpoints.
+
+    <Warning>
+    Standard presets at 20 steps will not work correctly with Turbo or Lightning checkpoints.
+    </Warning>
+  </Tab>
+  <Tab title="Flux models">
+    - **Flux - Euler simple**: used by Flux Dev, Flux Schnell, Chroma, and Z-Image Turbo.
+    - **Flux - Turbo**: uses a turbo LoRA to reduce steps to 8. Used for Live mode with Flux.
+    - **Flux 2 - Euler**: for Flux 2 Klein (4B and 9B) models.
+  </Tab>
+  <Tab title="Live mode">
+    - **Realtime - Hyper**: default for SD 1.5 and SDXL in Live mode. Uses the Hyper LoRA. Works well even at low denoise strength.
+    - **Flux - Turbo**: default for Flux-based styles in Live mode.
+  </Tab>
+</Tabs>
+
+## Sampler parameters
+
+### CFG scale (Guidance Strength)
+
+CFG scale controls how closely generation follows the text prompt.
+
+| Value range | Effect |
+|---|---|
+| 1.0 – 2.0 | Very low guidance; used by Flux and some Turbo models |
+| 3.5 – 5.0 | Moderate guidance; balanced creativity and prompt adherence |
+| 6.0 – 8.0 | Strong guidance; typical for SD 1.5 / SDXL |
+| 10.0+ | Overcooked results; avoid unless intentional |
+
+<Warning>
+CFG scale is not applicable to Flux Dev and Flux Kontext models (`supports_cfg = false`). Setting a high CFG with these models will not improve quality.
+</Warning>
+
+### Steps
+
+The `sampler_steps` value is the total number of denoising steps at 100% strength.
+
+- **More steps** can improve fine detail but have diminishing returns, and very high values may degrade quality.
+- **Fewer steps** are faster. Turbo and Lightning checkpoints are trained to work with 4–8 steps.
+- The actual steps run at lower denoise strengths is proportionally reduced (see [Denoise strength](#denoise-strength) below).
+
+Default values by preset type:
+
+| Preset type | Typical steps |
+|---|---|
+| Standard (DPM++, Euler A) | 20 |
+| Turbo / Lightning | 6 – 8 |
+| Fast (UniPC) | 12 |
+| Flux | 4 – 20 |
+| Realtime (Hyper) | 8 |
+
+### Denoise strength
+
+Denoise strength determines how much noise is added to the input before denoising. It is calculated from `start_step` and `total_steps` in the sampling input:
+
+```
+denoise_strength = (total_steps - start_step) / total_steps
+```
+
+At full strength (1.0), all steps run from pure noise. At 50% strength, only half the steps run. Each step still removes the same amount of noise — fewer steps are simply needed because less noise was added.
+
+### Minimum steps
+
+Each preset defines a `minimum_steps` value (default: 4). When the computed step count at a given denoise strength drops below this minimum, the plugin automatically rescales the noise schedule so that at least `minimum_steps` run. This preserves quality at low denoise strengths.
+
+## Custom presets
+
+You can define your own sampler presets in a JSON file. This is useful when you need a specific sampler or scheduler not covered by built-in presets.
+
+<Steps>
+  <Step title="Open the custom preset file">
+    In the Style editor, click the **custom presets** link next to the sampler dropdown. This creates a `samplers.json` file in `[appdata]/krita/ai_diffusion/presets/` and opens it in your text editor. Alternatively, use the **Open settings folder** link and navigate to the `presets/` subfolder.
+  </Step>
+  <Step title="Add a preset">
+    Add a new entry to the JSON object:
+
+    ```json
+    {
+        "My Custom Sampler - DPM++ 3M": {
+            "sampler": "dpmpp_3m_sde",
+            "scheduler": "exponential",
+            "steps": 20,
+            "minimum_steps": 4,
+            "cfg": 7.0
+        }
+    }
+    ```
+
+    The key is the display name shown in the UI.
+  </Step>
+  <Step title="Restart Krita">
+    Custom preset changes take effect only after restarting Krita.
+  </Step>
+</Steps>
+
+<Warning>
+You must restart Krita for changes to the preset file to take effect.
+</Warning>
+
+### Custom preset fields
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sampler` | string | Yes | Sampler algorithm name |
+| `scheduler` | string | Yes | Noise schedule name |
+| `steps` | integer | Yes | Default step count (used as initial value in UI) |
+| `cfg` | float | Yes | Default CFG scale |
+| `minimum_steps` | integer | No | Minimum steps at low denoise strength (default: 4) |
+| `lora` | string | No | Built-in LoRA to activate: `hyper`, `lcm`, `lightning`, or `turbo` |
+| `hidden` | boolean | No | Hide from dropdown unless already used by a loaded style |
+
+### Available sampler values
+
+```
+euler                        euler_cfg_pp
+euler_ancestral              euler_ancestral_cfg_pp
+heun                         heunpp2
+dpm_2                        dpm_2_ancestral
+lms                          dpm_fast
+dpm_adaptive                 dpmpp_2s_ancestral
+dpmpp_2s_ancestral_cfg_pp    dpmpp_sde
+dpmpp_sde_gpu                dpmpp_2m
+dpmpp_2m_cfg_pp              dpmpp_2m_sde
+dpmpp_2m_sde_gpu             dpmpp_3m_sde
+dpmpp_3m_sde_gpu             ddpm
+lcm                          ipndm
+ipndm_v                      deis
+res_multistep                res_multistep_cfg_pp
+res_multistep_ancestral      res_multistep_ancestral_cfg_pp
+gradient_estimation          gradient_estimation_cfg_pp
+er_sde                       seeds_2
+seeds_3                      ddim
+uni_pc                       uni_pc_bh
+uni_pc_bh2
+```
+
+### Available scheduler values
+
+```
+normal            karras
+sgm_uniform       ddim_uniform
+exponential       simple
+beta              linear_quadratic
+kl_optimal        align_your_steps
+gits              polyexponential
+laplace           flux2
+```

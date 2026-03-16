@@ -1,122 +1,98 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Generative AI for Krita",
+  "theme": "almond",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#dec874",
+    "light": "#693608",
+    "dark": "#826a38"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "/images/favicon.png",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/Acly/krita-ai-diffusion"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/Acly/krita-ai-diffusion"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Getting Started",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Introduction",
+            "pages": ["introduction", "installation"]
+          },
+          {
+            "group": "Server Setup",
+            "pages": ["server/overview", "server/local-server", "server/comfyui-setup", "server/cloud"]
+          }
+        ]
+      },
+      {
+        "tab": "User Guide",
+        "groups": [
+          {
+            "group": "Core Features",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "guide/basics",
+              "guide/selections",
+              "guide/live-painting",
+              "guide/upscaling"
+            ]
+          },
+          {
+            "group": "Advanced Features",
+            "pages": [
+              "guide/control-layers",
+              "guide/regions",
+              "guide/prompts",
+              "guide/edit-models",
+              "guide/custom-workflow"
             ]
           },
           {
             "group": "Customization",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
-            ]
-          },
-          {
-            "group": "Writing content",
-            "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "guide/styles-presets",
+              "guide/samplers",
+              "guide/models"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Models & Architecture",
             "pages": [
-              "api-reference/introduction"
+              "reference/base-models",
+              "reference/controlnet-modes",
+              "reference/resolutions"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Troubleshooting",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "reference/common-issues",
+              "reference/performance"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "reference/contributing",
+              "reference/api-overview"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

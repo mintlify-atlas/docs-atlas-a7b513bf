@@ -1,0 +1,172 @@
+---
+title: "Style presets"
+description: "Bundle checkpoint, LoRA, sampler settings, and prompt prefixes into reusable styles."
+---
+
+A **style** is a named configuration that packages together a model checkpoint, LoRA files, sampler settings, and prompt text. When you generate an image, the active style determines which model runs and how the prompt is interpreted. Switching styles changes all of these at once without touching your canvas prompt.
+
+## What a style contains
+
+Every style stores the following fields:
+
+| Field | Default | Description |
+|---|---|---|
+| `name` | `Default Style` | Display name shown in the style dropdown |
+| `architecture` | `Automatic` | The diffusion model architecture (e.g. SD 1.5, SDXL, Flux) |
+| `checkpoints` | `[]` | Ordered list of checkpoint filenames to try. The first one found is used. |
+| `loras` | `[]` | LoRA files to apply, each with a name, strength, and enabled toggle |
+| `style_prompt` | `best quality, highres` | Text appended to every prompt. Use `{prompt}` as a placeholder to wrap the user prompt. |
+| `negative_prompt` | `bad quality, low resolution, blurry` | Text describing things to avoid |
+| `vae` | `Checkpoint Default` | VAE model for image encoding/decoding |
+| `clip_skip` | `0` | CLIP layers to skip at the end. Some checkpoints need a non-zero value. |
+| `v_prediction_zsnr` | `false` | Enable for v-prediction checkpoints that require zero terminal SNR |
+| `self_attention_guidance` | `false` | Pay extra attention to difficult parts of the image (SD 1.5, SDXL, Illustrious only) |
+| `preferred_resolution` | `0` | Resolution the checkpoint was trained on (0 = auto) |
+| `linked_edit_style` | `""` | Alternative style used for instruction-based editing operations |
+| `sampler` | `Default - DPM++ 2M` | Sampler preset for standard generation |
+| `sampler_steps` | `20` | Maximum steps for standard generation |
+| `cfg_scale` | `7.0` | Guidance strength for standard generation |
+| `live_sampler` | `Realtime - Hyper` | Sampler preset for Live mode |
+| `live_sampler_steps` | `6` | Maximum steps for Live mode |
+| `live_cfg_scale` | `1.8` | Guidance strength for Live mode |
+
+## Built-in styles
+
+The plugin ships with styles for the most common model families. These are read-only; you can duplicate them to create editable copies.
+
+| Style | Architecture | Checkpoint(s) |
+|---|---|---|
+| Digital Artwork | SD 1.5 (auto) | dreamshaper_8.safetensors |
+| Digital Artwork (XL) | SDXL (auto) | zavychromaxl_v80.safetensors |
+| Cinematic Photo | SD 1.5 (auto) | serenity_v21Safetensors.safetensors |
+| Cinematic Photo (XL) | SDXL (auto) | cinematic-photo checkpoint |
+| Anime (Illustrious) | Illustrious | novaAnimeXL_ilV125.safetensors |
+| Anime (NoobAI XL) | Illustrious v-pred | NoobAI-XL-Vpred-v1.0.safetensors |
+| Flux | Flux | flux1-dev.safetensors |
+| Flux Schnell | Flux | flux1-schnell.safetensors |
+| Flux Kontext | Flux Kontext | flux1-kontext-dev.safetensors |
+| Chroma | Chroma | Chroma1-HD.safetensors |
+| Qwen | Qwen | qwen_image_bf16.safetensors |
+| Z-Image Turbo | Z-Image | z_image_turbo_bf16.safetensors |
+
+<Tip>
+To hide built-in styles from the dropdown, go to **Settings → Show pre-installed styles** and disable the option.
+</Tip>
+
+## Style prompt and negative prompt
+
+The `style_prompt` field is appended to every generation. The special `{prompt}` placeholder lets you wrap the user's prompt rather than simply appending to it.
+
+```
+# Appends after the user prompt:
+style_prompt = "best quality, highres"
+# Result: "<user prompt>, best quality, highres"
+
+# Wraps the user prompt:
+style_prompt = "cinematic photo of {prompt}, film, best quality"
+# Result: "cinematic photo of <user prompt>, film, best quality"
+
+# No user prompt visible (style overrides entirely):
+style_prompt = "{prompt}"
+```
+
+The `negative_prompt` is appended to the negative conditioning for every generation.
+
+## Creating a custom style
+
+<Steps>
+  <Step title="Open the Style editor">
+    Click the style name in the AI Diffusion docker to open the style dropdown, then click the **pencil icon** to open the Style editor.
+  </Step>
+  <Step title="Create a new style">
+    Click **New Style** (the `+` button) in the Style editor. A new style named "New Style" is added to your user styles folder.
+  </Step>
+  <Step title="Configure the style">
+    Set a name, select a checkpoint, and configure the sampler settings, prompts, and any LoRA files you want to include.
+  </Step>
+  <Step title="Save">
+    Changes are saved automatically when you close the editor or switch to another style. The style is written to a `.json` file in the user styles folder.
+  </Step>
+</Steps>
+
+## Duplicating a style
+
+To create an editable copy of any style (including built-in ones):
+
+<Steps>
+  <Step title="Select the style to copy">
+    In the Style editor, select the style you want to duplicate from the list.
+  </Step>
+  <Step title="Click Duplicate">
+    Click the **copy icon**. A new style named `<original name> (Copy)` is created in your user styles folder with all settings copied.
+  </Step>
+  <Step title="Edit and rename">
+    Rename the copy and modify its settings as needed.
+  </Step>
+</Steps>
+
+## Adding LoRA files
+
+LoRA files extend the checkpoint with additional training. Each LoRA entry in a style has:
+
+| Field | Description |
+|---|---|
+| `name` | Filename of the LoRA (as it appears in `[ComfyUI]/models/loras/`) |
+| `strength` | Influence of the LoRA, typically between `-2.0` and `2.0`. `1.0` is full strength. |
+| `enabled` | Toggle to include or exclude the LoRA without removing it from the style |
+
+<Note>
+LoRA files must be placed in `[ComfyUI]/models/loras/` to appear in the style editor dropdown.
+</Note>
+
+## Live mode vs. standard mode settings
+
+Each style maintains two independent sets of sampler settings: one for **standard generation** and one for **Live mode**. This allows you to use a high-quality sampler for regular generation and a fast sampler for real-time painting.
+
+<Tabs>
+  <Tab title="Standard generation">
+    - `sampler` — controls the sampling algorithm
+    - `sampler_steps` — maximum denoising steps (default: 20)
+    - `cfg_scale` — guidance strength (default: 7.0)
+  </Tab>
+  <Tab title="Live mode">
+    - `live_sampler` — controls the sampling algorithm
+    - `live_sampler_steps` — maximum denoising steps (default: 6)
+    - `live_cfg_scale` — guidance strength (default: 1.8)
+  </Tab>
+</Tabs>
+
+Built-in styles use `Realtime - Hyper` as the live sampler for SD 1.5 and SDXL checkpoints. Flux-based styles use `Flux - Turbo` for live generation.
+
+## Style file location
+
+Styles are stored as JSON files. The plugin reads from two locations:
+
+| Location | Purpose |
+|---|---|
+| `[plugin]/ai_diffusion/styles/` | Built-in read-only styles |
+| `[appdata]/krita/ai_diffusion/styles/` | User-created styles (editable) |
+
+User-created styles take priority in the sorted list. You can also manually edit or add `.json` files to the user styles folder — restart Krita after making changes outside the editor.
+
+## Architecture detection
+
+The `architecture` field tells the plugin which model family to use. Set it to `Automatic` to let the plugin detect the correct architecture from the checkpoint name and metadata.
+
+| Value | Model family |
+|---|---|
+| `Automatic` | Detected from checkpoint name/metadata |
+| `SD 1.5` | Stable Diffusion 1.5 |
+| `SD XL` | Stable Diffusion XL |
+| `SD 3` | Stable Diffusion 3 |
+| `Flux` | Flux.1 Dev / Schnell |
+| `Flux Kontext` | Flux.1 Kontext (edit model) |
+| `Illustrious` | Illustrious (SDXL-based) |
+| `Illustrious v-prediction` | Illustrious v-pred variant |
+| `Chroma` | Chroma |
+| `Qwen` | Qwen image generation |
+| `Z-Image` | Z-Image Turbo |
+
+<Warning>
+Setting the wrong architecture for a checkpoint will cause generation errors or poor results. Use `Automatic` when unsure.
+</Warning>

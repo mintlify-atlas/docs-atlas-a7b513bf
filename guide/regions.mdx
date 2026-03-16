@@ -1,0 +1,140 @@
+---
+title: "Regions"
+description: "Guide to region-based generation with Krita layers for per-area text prompts and control layers"
+---
+
+
+Regions assign distinct text prompts, LoRAs, and control layers to specific areas of the canvas. Each region is linked to one or more Krita layers whose pixel opacity defines the covered area.
+
+## What Regions Are
+
+A region is a sub-area of the image where region-specific conditioning applies. The `Region` class links to one or more Krita layers; the coverage mask is the composited opacity of those layers. Regions are managed by a `RootRegion`, which also holds the global positive and negative prompts.
+
+In the API, each region produces a `RegionInput`:
+
+```python
+@dataclass
+class RegionInput:
+    mask: Image           # derived from linked layer opacity
+    bounds: Bounds        # bounding box of the region layer
+    positive: str         # merged region + root prompt
+    control: list[ControlInput]   # per-region control layers
+    loras: list[LoraInput]        # per-region LoRAs
+```
+
+Region support is available for SD 1.5, SDXL, and Illustrious architectures (`Arch.supports_regions`). Flux, Qwen, and other architectures do not support regional conditioning.
+
+## Creating Regions
+
+<Steps>
+  <Step title="Enter a root prompt">
+    Type a general description of the whole image into the main text input. This becomes the **Root prompt**, which is appended to every region's prompt.
+  </Step>
+  <Step title="Click Add Region">
+    Click the **Add Region** button next to the prompt area. If the active layer is not already linked to a region, it becomes the first region's layer. If it is already linked, a new layer or group is created automatically.
+  </Step>
+  <Step title="Enter a region prompt">
+    Type a description specific to the area this region covers. The root prompt is merged in automatically during generation.
+  </Step>
+  <Step title="Paint the region area">
+    Make sure the linked layer has visible (non-transparent) content in the area you want the region to affect. Paint with any color, or use an existing layer with real content.
+  </Step>
+  <Step title="Repeat for additional regions">
+    Add more regions for other subjects. Keep the total count reasonable — five or fewer is recommended for best performance.
+  </Step>
+</Steps>
+
+<Note>
+  A single region prompt can be linked to multiple layers (useful for repeated objects of the same type). However, each layer can only be linked to one region.
+</Note>
+
+## The Root Prompt
+
+The root prompt (the text input at the bottom, marked with the **Root** indicator) is not linked to any layer. It is merged with every region's prompt during generation via `merge_prompt(region.positive, root.positive)`. It should describe the overall scene and composition.
+
+When there are no regions, the root prompt is used for the entire image.
+
+## Prompt Merging
+
+The `merge_prompt` function from `workflow.py` handles how region and root prompts combine:
+
+- If the style prompt contains `{prompt}`, the region text is substituted at that position.
+- If the style prompt is empty, only the region text is used.
+- Otherwise, region text is prepended: `"{region}, {style_prompt}"`.
+
+The positive prompt sent for each region is `merge_prompt(region.positive, root.positive)`.
+
+## Coverage and Layer Stacking
+
+The area a region affects follows normal Krita layer compositing. Layers higher in the stack cover layers beneath them. When multiple regions overlap:
+
+- The plugin subtracts accumulated masks from lower regions: regions higher in the layer stack take priority.
+- A region with less than 2% coverage (`min_coverage = 0.02`) is dropped.
+- A region covering more than 90% of the image is promoted to the global prompt (no regional conditioning).
+- If the combined regions do not cover 95% or more of the image, an automatic **background region** is inserted that uses the root prompt for uncovered areas.
+
+<Tip>
+  If regions don't cover the full image, the uncovered area will still follow the root prompt. You don't need an explicit background region unless you want a specific description there.
+</Tip>
+
+## Background Region
+
+A background region is simply a fully opaque layer at the bottom of the stack linked to a region. It works identically to any other region — there is nothing structurally special about it. It receives whatever prompt you assign, merged with the root prompt.
+
+## Layer Groups
+
+Regions can be linked to **layer groups** instead of individual paint layers. When linked to a group:
+
+- The covered area is the composited opacity of all layers in the group.
+- Generation results are applied as **new layers inside each affected region group** rather than overwriting existing content.
+- Coverage can be adjusted non-destructively by erasing or painting within the group.
+
+This is the recommended approach for iterative work because generated results remain on separate layers and can be partially removed with the eraser.
+
+<Note>
+  When a paint layer inside a region group is moved (e.g. dragged into a different group), the plugin automatically promotes the region link to the parent group to maintain the non-destructive workflow.
+</Note>
+
+## Per-Region Control Layers
+
+Each region has its own `ControlLayerList`. You can add control layers (Reference, Style, Composition, Face) that apply only within that region. Structural ControlNet layers (Depth, Pose, etc.) already have per-pixel correspondence with the canvas, so attaching them to individual regions is only partially supported; it is generally better to keep structural control layers on the root region.
+
+## Negative Prompts
+
+Negative prompts are managed at the root level (`RootRegion.negative`). They apply globally. Negative prompting is only enabled for architectures that support CFG guidance (`Arch.supports_cfg`). For Flux models, negative prompts are disabled.
+
+The `negative_enabled` property also reflects whether the current style's `cfg_scale` is greater than 1.
+
+## Regions in Selections
+
+When using Fill or Refine with an active selection, the plugin checks which regions intersect the selection. Only regions with sufficient coverage inside the selection bounds are used for that generation pass. Applying the result creates layers for the affected regions only.
+
+## Refine Region Mode
+
+The **Refine region** toggle uses the active layer's coverage as an implicit mask and ignores sibling regions. Only the active region prompt (combined with the root prompt) is applied. This is useful for refining individual subjects without affecting neighboring regions.
+
+## Region Hierarchies
+
+Regions can be nested inside other regions to manage complexity at multiple scales. The UI shows only the current parent region and its direct children. Full-image generation uses top-level regions. Refining a specific region activates its child regions. Selections apply the most relevant regions across the hierarchy based on coverage.
+
+<Tip>
+  Start with a small number of large regions. Add sub-regions inside existing ones as you refine individual subjects — this keeps each generation pass fast and manageable.
+</Tip>
+
+## Upscaling with Regions
+
+Tiled upscale refinement normally avoids text prompts because a single description doesn't apply equally to all tiles. With regions set up, each tile checks which regions it overlaps and applies the appropriate regional prompts, improving consistency during upscaling.
+
+## Tips
+
+<Accordion title="Regions are not composition tools">
+  Regions constrain where text prompts apply, but they do not force subjects to match a particular shape. For composition control, combine regions with a structural control layer (Scribble, Depth, Pose) to suggest the spatial layout.
+</Accordion>
+
+<Accordion title="Using transparency masks for precise coverage">
+  Add a transparency mask to a region group to add or subtract from the covered area for all layers in the group at once. This is more flexible than using the eraser on individual layers.
+</Accordion>
+
+<Accordion title="Regions in Live mode">
+  In Live mode, only the currently active region/layer is generated, plus context padding. This keeps generation fast while you iterate. Switch to the Generation workspace for full multi-region generation and upscaling.
+</Accordion>

@@ -1,0 +1,84 @@
+---
+title: "Live Painting"
+description: "Use live painting mode to get real-time AI feedback as you draw on the Krita canvas."
+---
+
+Live painting mode continuously interprets the canvas and generates updated previews as you draw or adjust parameters. It trades some quality for speed, giving you immediate visual feedback during the creative process.
+
+## How live painting works
+
+In live mode the plugin watches for changes to the canvas. Whenever you paint a stroke or modify a parameter, it schedules a new generation job and displays the result in the preview area within the docker — the canvas itself is not automatically modified. A scheduler tracks how long generations take and adjusts polling frequency to avoid overwhelming the server.
+
+The seed is kept constant during a session so the composition stays stable as you refine your drawing. Changing the seed produces a different variation.
+
+## Enabling live painting
+
+<Steps>
+  <Step title="Switch to the Live workspace">
+    Click the workspace toggle in the top-left of the docker and select **Live**.
+  </Step>
+  <Step title="Enter a prompt">
+    Type a description of what you want to see in the prompt field.
+  </Step>
+  <Step title="Set strength">
+    Adjust the strength slider. The default is 30%. Lower values keep the result closer to your brushwork; higher values let the AI interpret more freely.
+  </Step>
+  <Step title="Press Play">
+    Click the Play button (or the play icon in the toolbar). The preview area begins updating as you paint.
+  </Step>
+  <Step title="Apply when satisfied">
+    When you see a result you want to keep, click **Apply** to copy it to the active layer, or **New Layer** to add it as a separate layer above the stack.
+  </Step>
+</Steps>
+
+## Controls
+
+| Control | Description |
+|---------|-------------|
+| **Play/Pause** | Start or stop continuous generation. |
+| **Strength slider** | How strongly the AI interprets the canvas. 30% is the default — low values preserve strokes, high values transform them. |
+| **Seed** | Fixed integer that locks the AI's randomness. Change it to get a different variation of the result for the same drawing. |
+| **Random seed** | Click the dice icon to randomize the seed and generate a new variation. |
+| **Apply** | Copies the current preview into the active layer. |
+| **New Layer** | Creates a new layer above the active layer with the current preview. |
+| **Record** | Starts live generation and inserts each frame as a keyframe into an animation timeline. |
+
+## Strength and responsiveness
+
+The `strength` property on `LiveWorkspace` defaults to `0.3` (30%). This is the primary dial for controlling the relationship between your painting and the AI output:
+
+- **Low strength (10–30%)** — the AI mostly traces your linework and colors. Subtle interpretation, good for rendering sketches in a specific style.
+- **Mid strength (30–60%)** — the AI uses your drawing as a loose guide and adds its own interpretation. Good for concept work.
+- **High strength (70–100%)** — the AI can significantly depart from your drawing. Useful for creative exploration where the sketch is just a rough direction.
+
+<Warning>
+  At very high strength the preview can change drastically with every stroke, making it hard to converge on a result. Start low and increase gradually.
+</Warning>
+
+## Performance tips
+
+<AccordionGroup>
+  <Accordion title="Use a small canvas for live work">
+    Live generation is resolution-sensitive. Working at 512×512 or 768×768 gives much faster update rates than a full 4K canvas. You can upscale the result later using the Upscale workspace.
+  </Accordion>
+  <Accordion title="Keep subjects simple">
+    Complex scenes with many elements take longer to generate. Simple compositions — a single character or object against a plain background — produce faster and more consistent previews.
+  </Accordion>
+  <Accordion title="Lower strength for faster cycles">
+    Lower strength values require fewer diffusion steps, so each generation completes faster. If responsiveness matters more than creative freedom, keep strength below 50%.
+  </Accordion>
+  <Accordion title="Use a fast style preset">
+    Some style presets are configured with a live-optimized sampler. Check your style settings: the **Live sampler** and **Live CFG scale** fields override the defaults when live mode is active.
+  </Accordion>
+</AccordionGroup>
+
+## Use cases
+
+- **Concept sketching** — draw rough shapes and let the AI render them into polished concept art in real time.
+- **Quick iterations** — experiment with composition and lighting by painting broad strokes and watching the AI fill in detail.
+- **Style exploration** — change the style preset while keeping the same drawing to compare how different models interpret the same composition.
+- **Animation keyframes** — use the Record mode to generate a sequence of frames from hand-drawn keyframes for use in Krita's animation timeline.
+
+<Tip>
+  If you have defined regions on your canvas, live mode respects them. Each region can have its own prompt, so different parts of the canvas are interpreted independently.
+</Tip>

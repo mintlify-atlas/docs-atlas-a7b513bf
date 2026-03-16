@@ -1,0 +1,75 @@
+---
+title: "Online Service (cloud)"
+description: "Generate images using cloud GPU workers via interstice.cloud. No local hardware required."
+---
+
+The Online Service option connects the plugin to [interstice.cloud](https://www.interstice.cloud), which runs image generation on cloud GPU workers. No local GPU or ComfyUI installation is needed.
+
+## How it works
+
+When you select **Online Service** in the configuration dialog, the plugin sends generation requests to the interstice.cloud API. Images are generated on remote GPU workers and returned to your Krita session. Your canvas and prompts are not stored permanently.
+
+## Getting started
+
+<Steps>
+  <Step title="Open the configuration dialog">
+    In the plugin docker, click **Configure**. Select **Online Service** from the server options.
+  </Step>
+
+  <Step title="Sign in">
+    Click **Sign in**. Your browser will open to the interstice.cloud sign-in page.
+
+    If you do not have an account, sign up on the same page.
+  </Step>
+
+  <Step title="Authorize the plugin">
+    After signing in, the browser will display a confirmation screen. Return to Krita — the plugin will detect the authorization automatically and store an access token.
+  </Step>
+
+  <Step title="Start generating">
+    Once connected, the plugin is ready to use. Select a style and generate images as normal.
+  </Step>
+</Steps>
+
+<Note>
+  The access token is saved in the plugin settings. You will not need to sign in again unless you revoke the token or reinstall the plugin.
+</Note>
+
+## Pricing and usage
+
+See [interstice.cloud/service](https://www.interstice.cloud/service) for current pricing and terms.
+
+## Limitations compared to local generation
+
+| | Online Service | Local server |
+|---|---|---|
+| Custom checkpoints | Not available | Full control |
+| Custom LoRA | Not available | Full control |
+| Offline use | No | Yes |
+| Generation speed | Depends on server load | Depends on local GPU |
+| VRAM constraints | None | Limited by GPU |
+| Cost | Per-generation credits | Hardware only |
+
+<Info>
+  The Online Service uses the same generation pipeline as the local server. Most plugin features work identically, but you cannot load custom model checkpoints or LoRA files.
+</Info>
+
+## Signing out
+
+To disconnect and remove your stored access token, open the configuration dialog and click **Sign out**. You can sign back in at any time.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The browser does not open automatically">
+    If your browser does not open, check the plugin docker for a sign-in URL and open it manually.
+  </Accordion>
+
+  <Accordion title="The plugin shows an authentication error after signing in">
+    Try signing out and signing in again from the configuration dialog. If the problem persists, check [interstice.cloud](https://www.interstice.cloud) for service status or contact support.
+  </Accordion>
+
+  <Accordion title="Generation is slow or fails">
+    Cloud generation speed depends on current server load. If generation consistently fails, check [interstice.cloud](https://www.interstice.cloud) for status updates or reach out via [Discord](https://discord.gg/pWyzHfHHhU).
+  </Accordion>
+</AccordionGroup>

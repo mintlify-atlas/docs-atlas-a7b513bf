@@ -1,0 +1,292 @@
+---
+title: "ControlNet Modes"
+description: "Complete reference for all ControlNet and IP-Adapter modes in the Krita AI Diffusion plugin"
+---
+
+Control layers let you guide image generation using reference images. The plugin supports two distinct technologies: **ControlNet** (structural guidance) and **IP-Adapter** (style/appearance transfer). The `ControlMode` enum in `resources.py` defines all available modes.
+
+<Note>
+Some modes are handled internally (e.g., `inpaint`, `universal`) and do not appear in the control layer dropdown. The `is_internal` property marks these.
+</Note>
+
+## IP-Adapter Modes
+
+IP-Adapter modes transfer visual appearance from a reference image. They operate on semantic content rather than structural features. All IP-Adapter modes set `is_ip_adapter = True` and `is_structural = False`.
+
+<Note>
+IP-Adapter modes use a CLIP Vision model to encode the reference image. For SD 1.5 and SDXL the encoder processes images at 224×224 pixels internally (ViT-H). For Flux the encoder uses SigCLIP at 384×384 pixels.
+</Note>
+
+### Reference (`reference`, value 0)
+
+Transfers the overall visual style and content of a reference image to the generation.
+
+| Property | Detail |
+|----------|--------|
+| Type | IP-Adapter |
+| Preprocessor | None (uses image directly) |
+| `is_part_of_image` | Yes |
+| Architecture support | SD 1.5, SDXL, Flux, Illustrious |
+| Required model | `ip-adapter_sd15`, `ip-adapter_sdxl_vit-h`, `flux1-redux-dev`, `noobipa` |
+
+**Use case:** Maintain consistent style, color palette, or character appearance across multiple generations. Combine with a text prompt to steer content while preserving the referenced aesthetic.
+
+**Strength recommendation:** 0.5–0.8. Higher values cause the generation to closely mirror the reference image.
+
+### Style (`style`, value 14)
+
+Transfers artistic style from the reference image.
+
+| Property | Detail |
+|----------|--------|
+| Type | IP-Adapter |
+| Preprocessor | None |
+| Architecture support | SD 1.5, SDXL |
+
+**Use case:** Apply the painting style, brush strokes, or artistic technique of a reference to new content.
+
+### Composition (`composition`, value 15)
+
+Transfers the overall spatial composition from the reference image.
+
+| Property | Detail |
+|----------|--------|
+| Type | IP-Adapter |
+| Preprocessor | None |
+| Architecture support | SD 1.5, SDXL |
+
+**Use case:** Replicate the layout and arrangement of elements in the reference image while generating new content.
+
+### Face (`face`, value 13)
+
+Transfers face identity from the reference image using IP-Adapter FaceID models.
+
+| Property | Detail |
+|----------|--------|
+| Type | IP-Adapter |
+| Preprocessor | None |
+| Architecture support | SD 1.5, SDXL |
+| Required model | `ip-adapter-faceid-plusv2_sd15` (+ companion LoRA) |
+| Hardware requirement | InsightFace library |
+
+**Use case:** Generate consistent faces that match a reference photo. Requires the InsightFace library to be installed on the ComfyUI server.
+
+**Strength recommendation:** 0.7–1.0 for strong face identity retention.
+
+<Warning>
+Face mode requires `insightface` to be installed. The plugin marks this requirement with `ModelRequirements.insightface`. Generation will fail if it is not present.
+</Warning>
+
+## ControlNet Modes
+
+ControlNet modes use a neural network to condition generation on structural features extracted from a reference image. They set `is_control_net = True` and most set `is_structural = True`.
+
+### Lines Group
+
+These four modes all share `is_lines = True`. They guide the outline and edge structure of the generated image.
+
+#### Scribble (`scribble`, value 2)
+
+| Property | Detail |
+|----------|--------|
+| Preprocessor | HED / Pidinet edge detector |
+| Architecture support | SD 1.5, SDXL, Illustrious |
+| Universal substitute | Yes (SDXL/Illu) |
+
+**Input image:** Rough hand-drawn sketch or loose strokes on a white background.
+
+**Use case:** Sketch-to-image — turn a rough drawing into a polished image while preserving the general shape of your sketch.
+
+**Strength recommendation:** 0.6–1.0. At high strength the generated image will closely follow the sketch lines.
+
+#### Line Art (`line_art`, value 3)
+
+| Property | Detail |
+|----------|--------|
+| Preprocessor | Anime line art / realistic line art detector |
+| Architecture support | SD 1.5, SDXL, Flux, Illustrious |
+| Universal substitute | Yes (SDXL/Illu, Flux) |
+| `is_part_of_image` | Yes |
+
+**Input image:** Clean line art, manga panels, or coloring-book-style outlines.
+
+**Use case:** Colorize line art, render manga panels, or generate images that precisely follow prepared outlines.
+
+**Strength recommendation:** 0.8–1.0 for strict line following.
+
+#### Soft Edge (`soft_edge`, value 4)
+
+| Property | Detail |
+|----------|--------|
+| Preprocessor | HED soft edge detector |
+| Architecture support | SD 1.5, SDXL, Flux, Illustrious |
+| Universal substitute | Yes (SDXL/Illu, Flux) |
+
+**Input image:** Any image; the preprocessor extracts soft, blurred edges.
+
+**Use case:** More flexible than Canny — follows the general shapes in the reference image without being locked to hard edges. Good for organic forms.
+
+**Strength recommendation:** 0.5–0.9.
+
+#### Canny Edge (`canny_edge`, value 5)
+
+| Property | Detail |
+|----------|--------|
+| Preprocessor | Canny edge detector |
+| Architecture support | SD 1.5, SDXL, Flux, Illustrious |
+| Universal substitute | Yes (SDXL/Illu, Flux) |
+
+**Input image:** Any image; the preprocessor extracts sharp, precise edge maps.
+
+**Use case:** Precise structural control. Useful when you need the generation to exactly follow the edges of an existing image or design.
+
+**Strength recommendation:** 0.8–1.0 for tight edge adherence.
+
+### Depth (`depth`, value 6)
+
+| Property | Detail |
+|----------|--------|
+| Preprocessor | Depth Anything V2 |
+| Architecture support | SD 1.5, SDXL, Flux, Illustrious |
+| Universal substitute | Yes (SDXL/Illu, Flux) |
+
+**Input image:** Any image; the preprocessor generates a grayscale depth map (white = near, black = far).
+
+**Use case:** Preserve the 3D spatial arrangement of elements in a scene. Particularly useful for architectural and interior rendering.
+
+**Strength recommendation:** 0.5–0.8.
+
+### Normal (`normal`, value 7)
+
+| Property | Detail |
+|----------|--------|
+| Preprocessor | NormalBae surface normal estimator |
+| Architecture support | SD 1.5, Illustrious |
+
+**Input image:** Any 3D render or photo; the preprocessor computes surface normals (RGB-encoded direction map).
+
+**Use case:** Control surface orientation and lighting behaviour. Useful for re-texturing 3D models.
+
+**Strength recommendation:** 0.5–0.8.
+
+### Pose (`pose`, value 8)
+
+| Property | Detail |
+|----------|--------|
+| Preprocessor | OpenPose keypoint detector |
+| Architecture support | SD 1.5, SDXL, Flux (via universal), Illustrious |
+| Universal substitute | Yes (SDXL/Illu, Flux) |
+
+**Input image:** Any photo or render containing a human figure. The preprocessor outputs a skeleton keypoint map. A pose vector layer (Krita vector layer) can also be used directly as input.
+
+**Use case:** Control character pose precisely. Use an OpenPose-format keypoint image to dictate body position without specifying a specific person.
+
+**Strength recommendation:** 0.7–1.0.
+
+<Tip>
+The plugin supports using a Krita vector layer as a pose input directly (`is_pose_vector` property on control layers in `control.py`). This lets you manipulate pose keypoints as vector shapes inside Krita.
+</Tip>
+
+### Segmentation (`segmentation`, value 9)
+
+| Property | Detail |
+|----------|--------|
+| Preprocessor | Segmentation model (ADE20K palette) |
+| Architecture support | SD 1.5, SDXL |
+| Universal substitute | Yes (SDXL/Illu) |
+
+**Input image:** A color-coded segmentation mask where each color represents a semantic region (sky, floor, wall, etc.).
+
+**Use case:** Control which areas of the image contain which types of content using a semantic segmentation map.
+
+**Strength recommendation:** 0.8–1.0.
+
+### Blur / Tile (`blur`, value 10)
+
+| Property | Detail |
+|----------|--------|
+| Preprocessor | None (uses image directly) |
+| Architecture support | SD 1.5, SDXL, Flux, Illustrious |
+| Universal substitute | Yes (SDXL/Illu, Flux) |
+| `is_part_of_image` | Yes |
+
+**Input image:** A blurred or downscaled version of the target image.
+
+**Use case:** Tile-based upscaling and enhancement. The generation adds details to a blurred reference. Used internally by the upscaling workflow.
+
+**Strength recommendation:** 0.4–0.7 for subtle enhancement; higher values produce more creative additions.
+
+### Stencil (`stencil`, value 11)
+
+| Property | Detail |
+|----------|--------|
+| Preprocessor | None (uses image directly) |
+| Architecture support | SD 1.5, SDXL |
+
+**Input image:** A high-contrast pattern or QR-code-like stencil image.
+
+**Use case:** Embed a pattern or hidden structure into the generated image (e.g., QR codes, watermarks, or pattern-guided generations).
+
+**Strength recommendation:** 0.7–1.0. Too low and the pattern becomes invisible; too high and it dominates the image.
+
+### Hands (`hands`, value 12)
+
+| Property | Detail |
+|----------|--------|
+| Preprocessor | Inpaint + depth estimator for hand regions |
+| Architecture support | SD 1.5, SDXL |
+| Universal substitute | Yes (SDXL/Illu, treated as depth) |
+
+**Input image:** Any image containing hands; the preprocessor estimates depth for hand regions specifically.
+
+**Use case:** Improve anatomical correctness of hands, which diffusion models often generate poorly.
+
+**Strength recommendation:** 0.5–0.8.
+
+## Internal Modes
+
+These modes are used programmatically by the plugin and do not appear in the control layer dropdown (`is_internal = True`).
+
+### Inpaint (`inpaint`, value 1)
+
+Used for inpainting workflows. The plugin automatically selects the appropriate ControlNet inpaint model based on architecture.
+
+| Architecture | Model search pattern |
+|---|---|
+| SD 1.5 | `control_v11p_sd15_inpaint` |
+| Flux | `flux.1-dev-controlnet-inpaint` |
+| Illustrious | `noobaiinpainting` |
+| Qwen | `qwen-image-instantx-controlnet-inpainting` |
+
+### Universal (`universal`, value 16)
+
+A multi-task ControlNet union model that handles multiple control modes in a single model file. Used automatically when an architecture-specific individual ControlNet model is not available.
+
+| Architecture | Model search pattern |
+|---|---|
+| SDXL / Illustrious | `union-sdxl`, `xinsirunion` |
+| Flux | `flux.1-dev-controlnet-union-pro-2.0`, `flux.1-dev-controlnet-union-pro` |
+| Qwen | `qwen-image-instantx-controlnet-union` |
+| Z-Image | `z-image-turbo-fun-controlnet-union-2.1` |
+
+The `can_substitute_universal` method on `ControlMode` determines which individual modes the universal model can replace for a given architecture.
+
+## Architecture × Mode Support Matrix
+
+| Mode | SD 1.5 | SDXL | Flux | Illustrious | Z-Image |
+|------|--------|------|------|-------------|--------|
+| Reference (IP-Adapter) | Yes | Yes | Yes | Yes | No |
+| Face (IP-Adapter) | Yes | Yes | No | No | No |
+| Style / Composition | Yes | Yes | No | No | No |
+| Scribble | Yes | Via universal | Via universal | Yes | No |
+| Line Art | Yes | Via universal | Via universal | Yes | No |
+| Soft Edge | Yes | Via universal | Via universal | Yes | Via universal |
+| Canny Edge | Yes | Via universal | Via universal | Yes | Via universal |
+| Depth | Yes | Via universal | Via universal | Yes | Via universal |
+| Normal | Yes | Via universal | No | Yes | No |
+| Pose | Yes | Via universal | Via universal | Yes | Via universal |
+| Segmentation | Yes | Via universal | No | No | No |
+| Blur/Tile | Yes | Via universal | Via universal | Yes | Via universal |
+| Stencil | Yes | Yes | No | No | No |
+| Hands | Yes | Via universal | No | No | No |
+| Inpaint | Yes | No | Yes | Yes | Yes |

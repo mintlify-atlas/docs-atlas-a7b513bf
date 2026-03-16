@@ -1,0 +1,101 @@
+---
+title: "Upscaling"
+description: "Enlarge images to 4K, 8K, and beyond using super-resolution models with optional tiled diffusion refinement."
+---
+
+The Upscale workspace enlarges images while preserving sharp outlines and adding detail. It supports both fast super-resolution models and an optional tiled diffusion pass that can significantly improve quality at large resolutions.
+
+## Opening the Upscale workspace
+
+Click the workspace toggle in the top-left of the docker and select **Upscale**.
+
+## Basic upscaling
+
+<Steps>
+  <Step title="Choose an upscaler model">
+    Select a model from the dropdown. See [Upscaler models](#upscaler-models) below for guidance on which to choose.
+  </Step>
+  <Step title="Set the scale factor">
+    Use the slider or spin box to set a multiplier between 1× and 4×. The target resolution is shown below the slider. A 2× upscale of a 1920×1080 canvas produces a 3840×2160 (4K) image.
+  </Step>
+  <Step title="Click Upscale">
+    The plugin first resizes the canvas to the target resolution, then generates the upscaled image and adds it as a new layer.
+  </Step>
+</Steps>
+
+<Note>
+  Upscaling ignores the global performance settings such as resolution multiplier and maximum pixel count. It always runs at the full target resolution, using tiling to manage memory.
+</Note>
+
+## Upscale workflows
+
+Internally the plugin uses two workflow types depending on your settings:
+
+| Workflow | When used | Description |
+|----------|-----------|-------------|
+| `upscale_simple` | Upscaler model only, no diffusion refinement | Runs the super-resolution model on the full image. Fast, deterministic, predictable output. |
+| `upscale_tiled` | "Refine upscaled image" is enabled | Splits the upscaled image into overlapping tiles and runs diffusion on each. Adds detail and texture, but takes longer. |
+
+## Tiled diffusion refinement
+
+Enable the **Refine upscaled image** checkbox to run a diffusion model over the upscaled result. Because large resolutions are memory-intensive, the plugin splits the image into tiles and processes them sequentially:
+
+- Each tile is generated at the diffusion model's native resolution.
+- Tiles overlap to avoid visible seams at the boundaries.
+- The results are composited back into the full-resolution canvas.
+
+This makes 4K and even 8K refinement feasible on hardware that could never fit the entire image in VRAM at once.
+
+### Refinement options
+
+| Option | Description |
+|--------|-------------|
+| **Style** | Which diffusion style/checkpoint to use for the refinement pass. |
+| **Strength** | How much the diffusion model modifies each tile. Range is 20–50%. Lower values stay closer to the upscaled original; higher values add more detail but can introduce unwanted changes. |
+| **Image guidance** | Uses the low-resolution source as a conditioning reference during the tile pass, keeping output closer to the original while enhancing local details. Requires the tile/unblur control model to be installed. |
+| **Tile Overlap** | How much adjacent tiles overlap in pixels. Automatic is recommended. Increase it manually if you see seam artifacts — larger overlap produces smoother boundaries at the cost of longer processing time. |
+| **Use Prompt** | When enabled, the active text prompt (or region prompts) guides the refinement. Recommended only when regions are configured; using a single global prompt for tiled diffusion can produce incoherent results across tiles. |
+
+<Warning>
+  Using a high strength value during tiled refinement can introduce noticeable changes to fine details, faces, and text. Start at 20–30% and increase only if you need more detail enhancement.
+</Warning>
+
+## Upscaler models
+
+The plugin installs several super-resolution models. They are available in the model dropdown once the server is connected:
+
+| Name | Model file | Characteristics |
+|------|-----------|------------------|
+| **Default** | `4x_NMKD-Superscale-SP_178000_G.pth` | Balanced quality and speed. Good general-purpose choice. |
+| **Quality** | `HAT_SRx4_ImageNet-pretrain.pth` | Higher quality at the cost of speed. Best for final renders. |
+| **Sharp** | `Real_HAT_GAN_sharper.pth` | Emphasizes sharp edges and fine detail. |
+| **Fast** | `OmniSR_X4_DIV2K.safetensors` | Fastest option. Good for quick previews or lower-priority upscales. |
+
+All models perform 4× upscaling internally. The scale factor you set in the UI is applied on top — if you set 2×, the plugin crops and rescales the model output to match the target resolution.
+
+## Tips for best results
+
+<AccordionGroup>
+  <Accordion title="Upscale after finalizing content">
+    Upscaling is best done as a final step. Making significant edits to a 4K canvas is slower and the tiled refinement can be harder to control than working at the original resolution.
+  </Accordion>
+  <Accordion title="Use moderate strength for tiled refinement">
+    The 20–40% strength range is the sweet spot for tiled diffusion. Higher values enhance detail but risk over-processing — faces, text, and repeating patterns are especially susceptible to artifacts.
+  </Accordion>
+  <Accordion title="Set up regions before using Use Prompt">
+    If you enable **Use Prompt**, configure region layers first so different parts of the image receive appropriate descriptions. A single global prompt applied uniformly across all tiles rarely produces coherent results.
+  </Accordion>
+  <Accordion title="Increase tile overlap to remove seams">
+    If you see grid-like artifacts after tiled refinement, increase the **Tile Overlap** value in steps of 8 pixels. Larger overlap reduces seam visibility but increases the total number of tiles and generation time.
+  </Accordion>
+</AccordionGroup>
+
+## Target resolutions
+
+A reference for common upscale targets from a 1920×1080 source:
+
+| Scale | Output resolution | Common name |
+|-------|-------------------|-------------|
+| 2× | 3840 × 2160 | 4K UHD |
+| 3× | 5760 × 3240 | 6K |
+| 4× | 7680 × 4320 | 8K UHD |

@@ -1,0 +1,214 @@
+---
+title: "Models"
+description: "Add and manage checkpoints, LoRA files, VAE models, and upscalers for the Krita AI Diffusion plugin."
+---
+
+The plugin runs on [ComfyUI](https://github.com/comfyanonymous/ComfyUI) and uses its model directory structure. All model files are placed inside the ComfyUI installation folder.
+
+## Model types
+
+| Type | Description | ComfyUI folder |
+|---|---|---|
+| Checkpoint | Core diffusion model. Determines image style, quality, and capability. | `models/checkpoints/` |
+| LoRA | Lightweight extension that modifies a checkpoint with additional training. | `models/loras/` |
+| VAE | Encodes and decodes images. Affects color saturation and sharpness. | `models/vae/` |
+| ControlNet | Structural guidance models for depth, pose, edges, etc. | `models/controlnet/` |
+| IP-Adapter | Image-prompt adapters for reference, face, style matching. | `models/ipadapter/` |
+| Upscaler | Super-resolution models for the upscale workspace. | `models/upscale_models/` |
+| Text Encoder | CLIP, T5, or Qwen encoders for text conditioning. | `models/clip/` |
+| Inpaint | Dedicated inpainting models (Fooocus, LaMa). | `models/inpaint/` |
+
+## Supported model architectures
+
+The plugin supports the following diffusion model families:
+
+| Architecture | Display name | Notes |
+|---|---|---|
+| `sd15` | SD 1.5 | Stable Diffusion 1.5 |
+| `sdxl` | SD XL | Stable Diffusion XL |
+| `sd3` | SD 3 | Stable Diffusion 3 |
+| `flux` | Flux | Flux.1 Dev and Schnell |
+| `flux_k` | Flux Kontext | Flux.1 Kontext — instruction-based edit model |
+| `flux2_4b` | Flux 2 Klein 4B | Flux 2 Klein 4B model |
+| `flux2_9b` | Flux 2 Klein 9B | Flux 2 Klein 9B model |
+| `illu` | Illustrious | Illustrious (SDXL-based, epsilon prediction) |
+| `illu_v` | Illustrious v-prediction | Illustrious v-prediction variant |
+| `chroma` | Chroma | Chroma model |
+| `qwen` | Qwen | Qwen image generation |
+| `qwen_e` | Qwen Edit | Qwen instruction-based editing |
+| `qwen_e_p` | Qwen Edit Plus | Qwen Edit Plus (2509/2511 checkpoints) |
+| `qwen_l` | Qwen Layered | Qwen layered model |
+| `zimage` | Z-Image | Z-Image Turbo |
+
+<Tip>
+Set the architecture to `Automatic` in a style to let the plugin detect the correct family from the checkpoint name and server metadata.
+</Tip>
+
+## Adding a checkpoint
+
+<Steps>
+  <Step title="Download the checkpoint">
+    Download a `.safetensors` or `.ckpt` file. Most checkpoints are available on [Civitai](https://civitai.com/) or [Hugging Face](https://huggingface.co/).
+  </Step>
+  <Step title="Place the file in ComfyUI">
+    Copy the file to `[ComfyUI]/models/checkpoints/`. Subdirectories are supported.
+  </Step>
+  <Step title="Restart or refresh ComfyUI">
+    If ComfyUI is running, restart it so the new checkpoint appears in the model list.
+  </Step>
+  <Step title="Select the checkpoint in a style">
+    Open the Style editor in Krita, select or create a style, and choose the checkpoint from the **Model Checkpoint** dropdown. The plugin lists all checkpoint files found in the ComfyUI checkpoints folder.
+  </Step>
+</Steps>
+
+<Note>
+Checkpoints are listed in the style editor dropdown after ComfyUI has scanned them. If a checkpoint does not appear, confirm the file is in the correct folder and that ComfyUI has been restarted.
+</Note>
+
+## Adding LoRA files
+
+<Steps>
+  <Step title="Download the LoRA">
+    Download a `.safetensors` LoRA file compatible with your checkpoint architecture.
+  </Step>
+  <Step title="Place the file in ComfyUI">
+    Copy the file to `[ComfyUI]/models/loras/`.
+  </Step>
+  <Step title="Add the LoRA to a style">
+    In the Style editor, click **Add LoRA** under the LoRA section. Select the LoRA from the dropdown and set the strength value.
+  </Step>
+</Steps>
+
+### LoRA strength
+
+Strength controls how much the LoRA influences the output. Typical values:
+
+| Strength | Effect |
+|---|---|
+| `0.0` | No effect |
+| `0.5 – 0.8` | Subtle influence |
+| `1.0` | Full trained weight |
+| `> 1.0` | Amplified — can cause artifacts |
+| `< 0.0` | Negative — pushes away from trained content |
+
+Each LoRA also has an **enabled** toggle so you can temporarily disable it without removing it from the style.
+
+## VAE selection
+
+The VAE encodes and decodes the latent space image. It commonly affects color saturation and sharpness.
+
+The `Checkpoint Default` option uses the VAE baked into the checkpoint file. Most checkpoints include a suitable VAE and this setting works for the majority of cases.
+
+To use a custom VAE:
+
+<Steps>
+  <Step title="Place the VAE file">
+    Copy the `.safetensors` or `.pt` VAE file to `[ComfyUI]/models/vae/`.
+  </Step>
+  <Step title="Select in the style editor">
+    In the Style editor, use the **VAE** dropdown to select the VAE by filename.
+  </Step>
+</Steps>
+
+Default VAEs by architecture:
+
+| Architecture | Default VAE search pattern |
+|---|---|
+| SD 1.5 | `vae-ft-mse-840000-ema` |
+| SDXL / Illustrious | `sdxl_vae` |
+| Flux / Flux Kontext / Chroma | `flux-`, `flux_`, `ae.s` |
+| Qwen | `qwen` |
+| Z-Image | `z-image`, `flux-` |
+
+## Checkpoint settings
+
+The following settings apply to how the checkpoint is loaded:
+
+<AccordionGroup>
+  <Accordion title="Clip Skip">
+    Omits the final N layers of the CLIP text encoder. Some checkpoints are trained with a specific clip skip value and produce better results when it matches.
+
+    - Default: `0` (use all CLIP layers)
+    - Common values: `0` for most models, `1` or `2` for some SD 1.5 anime checkpoints
+    - Supported architectures: SD 1.5, SDXL, Illustrious, Illustrious v-pred
+  </Accordion>
+  <Accordion title="V-Prediction / Zero Terminal SNR">
+    Enable this option for v-prediction checkpoints that require zero terminal SNR noise scheduling. Leaving this off for a v-prediction checkpoint will produce washed-out, low-contrast images.
+
+    Check the checkpoint's model page or README to see if v-prediction and zero terminal SNR are required.
+  </Accordion>
+  <Accordion title="Self-Attention Guidance (SAG)">
+    Pays extra attention to areas of the image that the model finds difficult. Can improve fine detail in complex subjects.
+
+    - Supported architectures: SD 1.5, SDXL, Illustrious, Illustrious v-pred
+    - Has a performance cost; disable if generation speed is a priority
+  </Accordion>
+  <Accordion title="Rescale CFG">
+    A post-processing correction applied to the CFG guidance. The default value of `0.7` is used by Illustrious and NoobAI styles to prevent overexposure at higher CFG scales. For most SD 1.5 and SDXL checkpoints this setting has no effect.
+  </Accordion>
+</AccordionGroup>
+
+## Quantization
+
+For large models such as Flux, quantized checkpoint variants reduce VRAM usage significantly with minimal quality loss. The plugin supports two optional quantization backends:
+
+<Tabs>
+  <Tab title="GGUF">
+    GGUF-format checkpoints (e.g. `flux1-dev-Q4_K_M.gguf`) are supported via the optional **ComfyUI-GGUF** custom node.
+
+    Install from: `https://github.com/city96/ComfyUI-GGUF`
+
+    Place GGUF checkpoint files in `[ComfyUI]/models/unet/`.
+  </Tab>
+  <Tab title="NUNCHAKU (SVDQuant)">
+    NUNCHAKU supports INT4/FP4 quantized Flux models (e.g. `svdq-fp4_r32-flux.1-dev.safetensors`) via the optional **ComfyUI-nunchaku** custom node.
+
+    Install from: `https://github.com/nunchaku-tech/ComfyUI-nunchaku`
+
+    Quantized files go in `[ComfyUI]/models/checkpoints/` like standard checkpoints.
+  </Tab>
+</Tabs>
+
+<Note>
+Quantized model variants are listed alongside standard checkpoints in the style editor dropdown, provided the corresponding custom node is installed.
+</Note>
+
+## Upscaler models
+
+The plugin uses upscaler models for the upscale workspace. The following models are supported:
+
+| Identifier | Filename | Description |
+|---|---|---|
+| `default` | `4x_NMKD-Superscale-SP_178000_G.pth` | Default 4x upscaler |
+| `quality` | `HAT_SRx4_ImageNet-pretrain.pth` | High-quality 4x upscaler |
+| `sharp` | `Real_HAT_GAN_sharper.pth` | Sharp detail 4x upscaler |
+| `fast_2x` | `OmniSR_X2_DIV2K.safetensors` | Fast 2x upscaler |
+| `fast_3x` | `OmniSR_X3_DIV2K.safetensors` | Fast 3x upscaler |
+| `fast_4x` | `OmniSR_X4_DIV2K.safetensors` | Fast 4x upscaler |
+
+Upscaler files are placed in `[ComfyUI]/models/upscale_models/`.
+
+The `default` and `fast_2x` upscalers are required resources — the plugin's model installer will download them automatically.
+
+## Performance settings
+
+Two settings affect how models are loaded and executed:
+
+<AccordionGroup>
+  <Accordion title="Tiled VAE">
+    Processes the output image in smaller tiles during VAE decoding. Reduces VRAM usage for large images at the cost of some overhead.
+
+    Enabled automatically for the **GPU low (up to 6GB)** performance preset.
+  </Accordion>
+  <Accordion title="Dynamic Caching (First Block Cache)">
+    Re-uses outputs from previous denoising steps when they have not changed. Speeds up generation on compatible hardware (primarily Flux and similar architectures).
+
+    Disabled by default; can be enabled in **Settings → Performance**.
+  </Accordion>
+</AccordionGroup>
+
+## Finding and installing models
+
+The plugin's built-in model installer (accessible from **Settings → Connection**) lists required and recommended models with download links. It shows which models are missing and where to place them.
+
+For a full list of model files supported by the plugin, including checksums and download URLs, see the model database reference in the source repository at `ai_diffusion/presets/models.json`.

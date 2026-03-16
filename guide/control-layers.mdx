@@ -1,0 +1,172 @@
+---
+title: "Control Layers"
+description: "Guide to using ControlNet control layers and IP-Adapter modes in the Krita AI Diffusion plugin"
+---
+
+
+Control layers guide generation using images rather than text alone. This covers two underlying technologies: **ControlNet** (per-pixel structural guidance) and **IP-Adapter** (reference image guidance).
+
+## Adding a Control Layer
+
+<Steps>
+  <Step title="Select or create a layer">
+    Choose an existing paint layer, or create a new one. The content of this layer will be used as the control signal.
+  </Step>
+  <Step title="Click Add control layer">
+    In the plugin docker, click the **Add control layer** button. A new control layer entry appears below the prompt area.
+  </Step>
+  <Step title="Choose a mode">
+    Use the mode dropdown to select the type of control. See [Control Modes](#control-modes) for a description of each.
+  </Step>
+  <Step title="Adjust strength">
+    Use the preset slider (0–4) to set guidance strength. Higher values make the generated image adhere more closely to the control layer content.
+  </Step>
+</Steps>
+
+## Generating Control Layer Content
+
+Many control modes expect preprocessed input (e.g. a depth map or edge image) rather than a photo or painting directly. You can generate this content automatically:
+
+<Steps>
+  <Step title="Add a control layer">
+    Add a control layer as described above.
+  </Step>
+  <Step title="Ensure a base image is visible">
+    Make sure the canvas has visible image content to derive the control image from.
+  </Step>
+  <Step title="Click From image">
+    Click the **From image** button next to the control layer. A new layer is created and becomes active. This button is hidden inside **Advanced options** when the docker is narrow, and not present for modes that have no preprocessor (such as Blur and Stencil).
+  </Step>
+</Steps>
+
+<Note>
+  Generating a control image always uses all currently visible layers merged together. The control layer itself does not need to be visible during generation — its content is read directly.
+</Note>
+
+## Strength and Range
+
+Clicking the **Advanced options** (more) button exposes additional parameters:
+
+| Property | Description |
+|---|---|
+| **Strength** | Weight of the control signal. Corresponds to `strength / 50` internally (the `strength_multiplier` constant is 50). A preset slider value of 2 out of 4 (`max_preset_value = 4`) maps to a default strength of 1.0. |
+| **Start** | Fraction of diffusion steps at which control begins (0.0 = from the very first step). |
+| **End** | Fraction of diffusion steps at which control stops (1.0 = until the last step). |
+
+The start/end range lets you restrict control to a portion of the diffusion process. Composition is determined early in sampling; fine details are resolved later.
+
+<Tip>
+  Set **End** to 0.5–0.7 to apply structural control only during the coarse composition phase, giving the model more freedom to fill in details naturally.
+</Tip>
+
+When **Use custom strength** is enabled, the preset slider is bypassed and the strength/range values you set manually are preserved. Otherwise, changing the preset or mode resets strength and range to their default presets.
+
+## Control Modes
+
+Control modes fall into two categories: **structural** (ControlNet) and **reference** (IP-Adapter).
+
+### Reference Modes (IP-Adapter)
+
+These modes treat the control layer as a reference image. They do not require per-pixel alignment with the canvas. Square images work best; high-resolution details may be downscaled.
+
+<Tip>
+  Transparent areas in a reference layer are ignored. You can crop or composite images before using them as references.
+</Tip>
+
+<CardGroup cols={2}>
+  <Card title="Reference" icon="image">
+    Subjects, composition, colors, and style are taken from the control image. Influences generation similarly to a text prompt — the model has freedom to deviate.
+  </Card>
+  <Card title="Style" icon="palette">
+    Transfers only the visual style (color palette, texture, brushwork) from the control image, leaving composition more open.
+  </Card>
+  <Card title="Composition" icon="layout">
+    Transfers the spatial layout and composition from the control image without enforcing its style. Works best with SDXL.
+  </Card>
+  <Card title="Face" icon="user">
+    Replicates facial features from the control image. Input should be a cropped face image with a small amount of padding around the face.
+  </Card>
+</CardGroup>
+
+<Note>
+  For edit model architectures (Flux Kontext, Qwen Edit, Flux 2), reference images are merged directly into the conditioning context rather than processed through a separate IP-Adapter. The `is_supported` check handles this automatically.
+</Note>
+
+### Structural Modes (ControlNet)
+
+These modes use a per-pixel correspondence between the control layer and the canvas. The control image should match the canvas dimensions.
+
+<Tabs>
+  <Tab title="Line-based">
+    **Scribble** — Loose hand-drawn lines or rough sketches. The model infers detail and texture from the sketch shape.
+
+    **Line Art** — Clean line drawings, including anime-style outlines. Can be generated from photos or drawn manually.
+
+    **Soft Edge** — Blurred or anti-aliased edges. Less strict than Canny; allows more variation in fine details.
+
+    **Canny Edge** — Precise edges detected by the Canny algorithm. Usually generated from an existing image rather than drawn by hand.
+
+    All four of these modes share the `is_lines` property. Lines and stencil modes automatically set transparent areas to white before sending the image to the server.
+  </Tab>
+  <Tab title="Spatial">
+    **Depth** — A grayscale depth map where brighter pixels are closer to the camera. Can be rendered from 3D software (Blender, etc.) or generated from a photo with the **From image** preprocessor.
+
+    **Normal** — An RGB normal map encoding surface orientation per pixel. Useful for preserving fine surface relief from 3D renders.
+
+    **Pose** — OpenPose stick figures representing body pose. When the linked layer is a Krita vector layer, the `is_pose_vector` flag is set and special pose-editing behavior is enabled.
+
+    **Segmentation** — A color-coded semantic map where each color represents a class (sky, ground, wall, person, etc.).
+
+    **Hands** — Specialized depth-based guidance for hand detail. Uses the same depth ControlNet internally for SDXL.
+  </Tab>
+  <Tab title="Other">
+    **Unblur** — The control image is a blurred version of the target. The model reconstructs a sharper result guided by the blur. Useful for high-fidelity upscaling and faithful image copies with limited modifications.
+
+    **Stencil** — A black-and-white pattern that is imprinted into the generated image. Originally developed for creative QR code generation. Transparent and stencil modes make opaque backgrounds white automatically.
+  </Tab>
+</Tabs>
+
+## Architecture Compatibility
+
+Not all control modes are available for every base model. The `is_supported` property on a control layer is set to `false` when the required ControlNet or IP-Adapter model is not installed or not compatible with the selected architecture.
+
+| Mode | SD 1.5 | SDXL / Illustrious | Flux | Notes |
+|---|---|---|---|---|
+| Reference | Yes | Yes | Yes (Redux) | IP-Adapter |
+| Style / Composition | Yes | Yes | — | IP-Adapter, best on SDXL |
+| Face | Yes | Yes | — | Requires InsightFace |
+| Scribble | Yes | Yes (Universal) | Yes (Universal) | |
+| Line Art | Yes | Yes (Universal) | Yes | |
+| Soft Edge | Yes | Yes (Universal) | Yes | |
+| Canny Edge | Yes | Yes (Universal) | Yes | |
+| Depth | Yes | Yes (Universal) | Yes | |
+| Normal | Yes | Yes (Universal) | — | |
+| Pose | Yes | Yes (Universal) | Yes (Universal) | |
+| Segmentation | Yes | Yes | — | |
+| Unblur | Yes | Yes | Yes | |
+| Stencil | Yes | Yes | — | |
+| Hands | Yes | Yes | — | |
+
+For SDXL and Flux, many modes share a single **Universal ControlNet** model, which handles multiple types via a union architecture.
+
+<Warning>
+  A maximum number of control layers can be used simultaneously, determined by the server's `max_control_layers` feature flag. Adding more layers than this limit will mark the extra layers as unsupported.
+</Warning>
+
+## Tips
+
+<Accordion title="Combining multiple control layers">
+  Control layers stack additively. You can combine, for example, a Pose layer at high strength with a Depth layer at moderate strength to control both body position and spatial depth simultaneously. Adjust the range of each to minimize conflicts.
+</Accordion>
+
+<Accordion title="Using Pose with Krita vector layers">
+  When a control layer in Pose mode is linked to a Krita vector layer, the plugin detects this (`is_pose_vector = True`) and enables a pose-character editing workflow. Use Krita's vector tools to manipulate the OpenPose skeleton directly on the canvas.
+</Accordion>
+
+<Accordion title="Reference images and layer transparency">
+  IP-Adapter modes (Reference, Style, Composition, Face) ignore the mask bounds and instead use the layer's own bounds when the layer has non-zero content. This means a partially transparent reference image on a small sub-region of the canvas will still be used in full.
+</Accordion>
+
+<Accordion title="Custom strength presets">
+  Default strength and range values for each mode and architecture come from `presets/control.json`. You can override these by creating a `control.json` file in your user data directory (`presets/control.json`). The format uses `{strength, start, end}` entries per mode and architecture.
+</Accordion>

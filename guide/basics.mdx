@@ -1,0 +1,108 @@
+---
+title: "Plugin Basics"
+description: "Introduction to the AI Image Generation docker, the main generation workflow, job queue, history, and result handling."
+---
+
+This guide introduces the core interface elements of the Krita AI Diffusion plugin and the fundamental workflow for generating images.
+
+## The AI Image Generation docker
+
+After installation, the plugin lives inside a Krita docker panel. To open it, go to **Settings > Dockers > AI Image Generation**. The docker contains several workspaces selectable from a toggle in the top-left corner:
+
+<CardGroup cols={2}>
+  <Card title="Generation" icon="image">
+    The main workspace for prompt-based generation, inpainting, and refinement.
+  </Card>
+  <Card title="Live" icon="play">
+    Real-time canvas interpretation that updates as you paint.
+  </Card>
+  <Card title="Upscale" icon="arrow-up-right">
+    Super-resolution upscaling to 4K, 8K, and beyond.
+  </Card>
+  <Card title="Animation" icon="film">
+    Batch operations on animation keyframes.
+  </Card>
+</CardGroup>
+
+## Main generation workflow
+
+<Steps>
+  <Step title="Enter a prompt">
+    Type a text description in the prompt field at the top of the Generation workspace. This describes what you want the AI to produce.
+  </Step>
+  <Step title="Choose a style">
+    Select a style preset from the dropdown. Styles bundle together a checkpoint model, sampler settings, and prompt modifiers. The default presets cover a wide range of use cases.
+  </Step>
+  <Step title="Set the strength">
+    The strength slider controls how much the current canvas content influences generation. At 100% the button reads **Generate**, which produces a new image from scratch. Below 100% it reads **Refine**, using the canvas as a starting point — lower strength preserves more of the original.
+  </Step>
+  <Step title="Generate">
+    Click **Generate** (or press Shift+Enter). The job is added to the queue and a preview appears on the canvas when it finishes.
+  </Step>
+</Steps>
+
+<Tip>
+  Start with a small canvas resolution when experimenting. Large canvases take considerably longer to generate.
+</Tip>
+
+## Applying results
+
+Generated images are shown as a preview on the canvas first. You can generate multiple results for the same input and compare them in the history panel before committing.
+
+The **Generation Finished Action** controls what happens automatically when a job completes:
+
+| Action | Behavior |
+|--------|----------|
+| `Do Nothing` | Result is added to history but the canvas is not changed. |
+| `Preview` | Result is displayed as a preview on the canvas (default). |
+| `Apply` | Result is immediately applied as a new layer. |
+
+When you are satisfied with a result, click its **Apply** button in the history panel, or double-click the thumbnail. This applies the image to the canvas according to the **Apply Behavior** setting:
+
+| Behavior | Effect |
+|----------|--------|
+| `Modify active layer` | Writes the result directly into the currently active layer. |
+| `New layer on top` | Creates a new layer above all existing layers. |
+| `New layer above active` | Creates a new layer directly above the currently active layer. |
+
+<Note>
+  Results are applied as layers by default. This lets you erase unwanted parts, blend multiple results together, or keep a clean edit history.
+</Note>
+
+## Job queue
+
+The plugin queues generation jobs so you can keep painting while previous jobs finish. The queue button next to Generate lets you control how new jobs are added:
+
+- **Queue at back** — the new job runs after all pending jobs finish.
+- **Queue at front** — the new job runs next, before other pending jobs.
+- **Replace** — cancels any pending jobs and runs only the new one.
+
+You can cancel individual jobs from the queue at any time.
+
+## History and results browser
+
+The history panel shows thumbnails of all results generated in the current session. Selecting a thumbnail previews it on the canvas. From the context menu on any result you can:
+
+- Apply the result as a layer.
+- Copy the prompt that produced it.
+- Discard results you no longer need.
+
+Results are keyed to the job that produced them, so you can browse back and see what prompt and settings were used.
+
+## Styles and presets
+
+The style dropdown in the Generation workspace selects which checkpoint model, LoRA, and sampler configuration will be used. The plugin ships with default presets covering common model types (SD 1.5, SDXL, Flux, Illustrious). You can create custom styles in **Settings > Styles** to use your own checkpoints, LoRA weights, and sampling parameters.
+
+## Further reading
+
+<CardGroup cols={2}>
+  <Card title="Selections" href="/guide/selections">
+    Use Krita selections for targeted inpainting and canvas expansion.
+  </Card>
+  <Card title="Live Painting" href="/guide/live-painting">
+    Generate in real time as you draw on the canvas.
+  </Card>
+  <Card title="Upscaling" href="/guide/upscaling">
+    Enlarge images to 4K and beyond without running out of VRAM.
+  </Card>
+</CardGroup>

@@ -1,0 +1,60 @@
+---
+title: "Server options"
+description: "Overview of the three backend options for Krita AI Diffusion: cloud, local managed server, and custom ComfyUI."
+---
+
+The Krita AI Diffusion plugin requires a generation backend to produce images. When you click **Configure** in the plugin docker, you can choose from three options.
+
+<Columns cols={3}>
+  <Card title="Online Service" icon="cloud" href="/server/cloud">
+    Generate on cloud GPU workers via interstice.cloud. No local hardware or installation needed.
+  </Card>
+  <Card title="Local Managed Server" icon="server" href="/server/local-server">
+    The plugin installs and manages ComfyUI automatically. Requires a compatible GPU on your machine.
+  </Card>
+  <Card title="Custom ComfyUI Server" icon="wrench" href="/server/comfyui-setup">
+    Connect to an existing ComfyUI installation. Works with local or remote servers.
+  </Card>
+</Columns>
+
+## Comparison
+
+| | Online Service | Local Managed | Custom ComfyUI |
+|---|---|---|---|
+| Setup effort | Minimal | Low | Manual |
+| Local GPU required | No | Yes | Yes (or remote) |
+| Account required | Yes | No | No |
+| Model control | Limited | Full | Full |
+| AMD GPU support | Yes | No | Yes |
+| Cost | [See pricing](https://www.interstice.cloud/service) | Free (hardware costs) | Free (hardware costs) |
+
+## Which option should I choose?
+
+<AccordionGroup>
+  <Accordion title="I want to get started quickly without a powerful GPU">
+    Use the **Online Service**. Sign in with an interstice.cloud account and start generating images immediately. No local installation is required.
+  </Accordion>
+  <Accordion title="I have an NVIDIA GPU and want full control over models">
+    Use the **Local Managed Server**. The plugin downloads and installs ComfyUI automatically. You keep full control over which models to install.
+  </Accordion>
+  <Accordion title="I already have ComfyUI installed, or I use an AMD GPU">
+    Use the **Custom ComfyUI Server**. The plugin connects to your existing ComfyUI instance. You are responsible for installing the required custom nodes and models.
+  </Accordion>
+  <Accordion title="I want to use a remote server">
+    Use the **Custom ComfyUI Server** option. Enter the remote server URL in the connection settings. The plugin connects over HTTP.
+  </Accordion>
+</AccordionGroup>
+
+## Detailed guides
+
+<CardGroup cols={3}>
+  <Card title="Online Service" icon="cloud" href="/server/cloud">
+    Sign up and connect to cloud generation.
+  </Card>
+  <Card title="Local Managed Server" icon="server" href="/server/local-server">
+    Automatic ComfyUI installation and management.
+  </Card>
+  <Card title="Custom ComfyUI Server" icon="wrench" href="/server/comfyui-setup">
+    Required nodes, models, and connection settings.
+  </Card>
+</CardGroup>

@@ -1,0 +1,126 @@
+---
+title: "Edit Models"
+description: "How to use edit models (Flux Kontext, Qwen Edit, Flux 2 Klein) to modify existing images via text instructions"
+---
+
+
+Edit models are diffusion models trained to modify an existing image in response to a text instruction rather than generate a new image from scratch. They are useful when you want to change a specific aspect of an image while preserving the rest.
+
+## What Edit Models Do
+
+Regular generation models take a text description and produce an image from noise. Edit models take **both an existing image and an instruction** and produce a modified version:
+
+| | Regular Model | Edit Model |
+|---|---|---|
+| **Input** | Text description (+ optional image for strength < 100%) | Existing image + text instruction |
+| **Prompt style** | Descriptive: "a sunny mountain landscape" | Instructional: "make the sky stormy" |
+| **Strength** | Works across the full 0–100% range | Typically used at 100%; low strength often produces no change |
+| **Use case** | Generate new images or restyle entirely | Targeted modifications to existing images |
+
+Example instructions:
+- "Make it night with a starry sky"
+- "Add a black cat sitting next to the girl"
+- "Change the man's jacket to red"
+- "Remove the car from the background"
+
+## Supported Edit Architectures
+
+The plugin identifies edit models via the `Arch.is_edit` property:
+
+```python
+@property
+def is_edit(self):  # edit models make changes to input images
+    return self in [Arch.flux_k, Arch.qwen_e, Arch.qwen_e_p, Arch.qwen_l]
+```
+
+<CardGroup cols={2}>
+  <Card title="Flux Kontext" icon="zap">
+    The primary supported edit model. Strong general-purpose image editing. Identified as `Arch.flux_k` ("Flux Kontext"). Works well for style transfer, object manipulation, and global changes.
+  </Card>
+  <Card title="Qwen Image Edit" icon="pencil">
+    Experimental. Comes in three variants: `qwen_e` (base), `qwen_e_p` (Plus, filenames containing `2509` or `2511`), and `qwen_l` (Layered). The Plus variant supports picture references in text prompts directly.
+  </Card>
+  <Card title="Flux 2 Klein" icon="layers">
+    `Arch.flux2_4b` and `Arch.flux2_9b`. These models support both standard generation and editing (`Arch.supports_edit`), so you can switch between Generate and Edit modes without changing styles.
+  </Card>
+  <Card title="Z-Image (experimental)" icon="image">
+    Identified as `Arch.zimage`. Supports editing workflows similar to Flux Kontext.
+  </Card>
+</CardGroup>
+
+## How to Use Edit Models
+
+<Steps>
+  <Step title="Install the model">
+    Edit models are installed like standard checkpoints. On a managed server, select the model from the available list. On a custom server, place the model file in the `models/diffusion_models` folder. Multiple quantization variants (fp8, fp4, Nunchaku, GGUF) may be available for the same model.
+  </Step>
+  <Step title="Select an edit style">
+    Choose a style that uses the edit model (e.g. the built-in **Flux Kontext** style). You can also copy and customize any built-in edit style. If auto-detection does not identify the model correctly, set the architecture manually to "Flux Kontext" in the style's advanced checkpoint settings.
+  </Step>
+  <Step title="Prepare the image">
+    Make sure the image you want to edit is visible on the Krita canvas. All visible layers are merged and used as the primary input. Edit models work best around 1 megapixel resolution. Use a selection to limit the edit to a smaller area if needed.
+  </Step>
+  <Step title="Write an instruction">
+    Enter a specific, imperative instruction in the prompt field. Identify objects by a unique feature, state the desired change clearly, and mention anything that should stay the same. Make one change at a time for best results.
+  </Step>
+  <Step title="Click Edit">
+    When an edit style is active, the **Generate** button is replaced with **Edit**. Click it to submit the job.
+  </Step>
+</Steps>
+
+<Warning>
+  If the **Edit** button does not appear, the selected style is not configured to use an edit model. Check the style settings and verify that the model architecture is set correctly.
+</Warning>
+
+## Linking Edit Styles
+
+You can link an edit style to a regular generation style in the Style settings. This adds a dropdown next to the Generate button that lets you switch between generation and edit mode without swapping styles. Edit mode maintains a separate prompt, so you can have descriptive text for generation and instructional text for editing stored independently.
+
+<Note>
+  Flux 2 Klein models support both generation and editing within the same model. No linked edit style is needed — the Generate/Edit toggle is available directly.
+</Note>
+
+## Using Multiple Images
+
+Edit models can accept additional reference images beyond the primary canvas:
+
+<Steps>
+  <Step title="Add a control layer">
+    Click **Add control layer** and select the layer containing the reference image. You can hide the layer so it does not affect the canvas visually.
+  </Step>
+  <Step title="Reference in the prompt">
+    For Qwen Edit Plus (2509/2511): use `Picture 1` for the main canvas, `Picture 2`, `Picture 3`, etc. for control layer images in the order they appear in the UI. For other models, describe the reference image's content in text.
+  </Step>
+</Steps>
+
+Alternatively, use the `<layer:name>` syntax in the prompt (see [Prompts — Layer References](/guide/prompts#layer-references)) to attach a layer as a reference image inline.
+
+<Warning>
+  Each additional reference image significantly increases memory usage and processing time.
+</Warning>
+
+## Edit Model Internals
+
+For edit architectures (`Arch.supports_edit`), the plugin handles ControlNet control layers differently:
+
+- IP-Adapter modes (Reference, Style, Composition, Face) are merged into the conditioning context rather than passed to a separate IP-Adapter model.
+- ControlNet structural modes use `can_substitute_instruction()` to check whether the mode is covered by the model's instruction-following capability (e.g. for Flux 2, style/composition/face/depth/pose can all be controlled via instructions).
+- The `edit_reference` flag in `ConditioningInput` signals to the workflow that the input image should be used as a conditioning reference.
+
+## Common Issues
+
+<Accordion title="The generated image looks unchanged">
+  The model did not follow the instruction. Try rephrasing — be more specific and explicit. Mention both what should change and what should stay the same. Edit models work best with direct imperative language.
+</Accordion>
+
+<Accordion title="Low strength has no effect">
+  Unlike regular models, edit models require high strength (close to 100%) to apply any change. Lower strength values prevent the model from making modifications.
+</Accordion>
+
+<Accordion title="Edit model is not detected automatically">
+  If auto-detection places the model in the wrong architecture, open the style settings and manually set the architecture to the correct value (e.g. "Flux Kontext") in the advanced checkpoint configuration.
+</Accordion>
+
+<Accordion title="Control layer modes not available">
+  For edit model architectures, many ControlNet modes are not available as separate models. Instead, include the structural guidance in the text instruction itself, or use instruction-compatible modes (verified via `can_substitute_instruction()`).
+</Accordion>

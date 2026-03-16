@@ -1,0 +1,218 @@
+---
+title: "Base Models"
+description: "Reference for all diffusion model architectures supported by the Krita AI Diffusion plugin"
+---
+
+The plugin supports multiple diffusion model architectures. Each architecture has distinct capabilities, resource requirements, and compatible extensions. **LoRA, ControlNet, and IP-Adapter models are not interchangeable between architectures.**
+
+<Note>
+The `Arch` enum in `resources.py` defines all supported architectures. The current resource version is `1.48.0`.
+</Note>
+
+## Stable Diffusion Family
+
+### Stable Diffusion 1.5 (`sd15`)
+
+The original Stable Diffusion 1.5 architecture, released in October 2022. Trained natively at 512×512 pixels; custom checkpoints extend this to 768×768 without significant degradation.
+
+| Property | Value |
+|----------|-------|
+| Native resolution | 512×512 to 768×768 |
+| Min/Max pixel count | 512² to 512×768 |
+| Text encoders | `clip_l` |
+| Latent compression | 8× |
+| Typical VRAM | 4–6 GB |
+| LoRA support | Yes (widest ecosystem) |
+| LCM/Hyper support | Yes |
+| Region support | Yes |
+| CFG scale | Yes |
+
+**Use case:** General-purpose generation on modest hardware. Best choice when VRAM is limited or when you need access to the widest range of community checkpoints and LoRAs.
+
+<Tip>
+SD 1.5 supports the largest range of ControlNet modes, including `scribble`, `line_art`, `soft_edge`, `canny_edge`, `depth`, `normal`, `pose`, `segmentation`, `blur`, `stencil`, and `hands`.
+</Tip>
+
+### Stable Diffusion XL (`sdxl`)
+
+Released in July 2023, SDXL targets 1024×1024 generation with a valid range of 640–1280 pixels per side.
+
+| Property | Value |
+|----------|-------|
+| Native resolution | 640–1280 (target 1024²) |
+| Min/Max pixel count | 800² to 1024² |
+| Text encoders | `clip_l`, `clip_g` |
+| Latent compression | 8× |
+| Typical VRAM | 8–12 GB |
+| LCM/Lightning support | Yes |
+| Region support | Yes |
+| CFG scale | Yes |
+
+**Use case:** Higher-fidelity outputs when you have 8+ GB VRAM. Better prompt adherence than SD 1.5. Uses a universal ControlNet union model that covers most control modes in a single file.
+
+<Note>
+SDXL, Illustrious, and Illustrious v-prediction are treated as `is_sdxl_like = True` and share the same SDXL-compatible extensions ecosystem, but Illustrious has its own separate model files.
+</Note>
+
+### Illustrious (`illu`) and Illustrious v-prediction (`illu_v`)
+
+Anime-focused models built on the SDXL architecture. Despite sharing the architecture, they use a distinct training dataset and their own set of extensions (ControlNet, IP-Adapter, LoRA).
+
+| Property | Value |
+|----------|-------|
+| Architecture base | SDXL |
+| Text encoders | `clip_l`, `clip_g` |
+| Typical VRAM | 8–12 GB |
+| Region support | Yes |
+| Clip skip | Yes |
+| CFG scale | Yes |
+
+**Use case:** Anime, illustration, and stylized art generation. The NoobAI XL model is the primary community checkpoint.
+
+<Warning>
+Epsilon-prediction Illustrious models cannot be distinguished from standard SDXL automatically. You must manually set the base model to "Illustrious" in Style settings → Advanced checkpoint configuration. V-prediction models are detected automatically.
+</Warning>
+
+### Stable Diffusion 3 (`sd3`)
+
+Stable Diffusion 3 uses a different transformer architecture. It has a wider resolution range (512–1536) and a higher latent compression factor.
+
+| Property | Value |
+|----------|-------|
+| Native resolution | 512–1536 |
+| Min/Max pixel count | 512² to 1536² |
+| Text encoders | `clip_l`, `clip_g` |
+| Latent compression | 16× |
+
+<Note>
+SD 3 has limited support. See the [Stable Diffusion 3.5 discussion](https://github.com/Acly/krita-ai-diffusion/discussions/1328) for current status.
+</Note>
+
+## Flux Family
+
+### Flux (`flux`)
+
+Flux is a modern diffusion transformer released by Black Forest Labs in August 2024. It offers superior text understanding and image consistency compared to Stable Diffusion.
+
+| Property | Value |
+|----------|-------|
+| Native resolution | 256–2048 (target ~1 MP) |
+| Text encoders | `clip_l`, `t5` |
+| Latent compression | 8× |
+| Typical VRAM | 12–24 GB |
+| Inpaint ControlNet | Yes |
+| CFG scale | No (uses guidance distillation) |
+| LCM support | No |
+
+**Use case:** High-quality photorealistic outputs with precise text rendering. Requires a powerful GPU. The `flux.1-turbo` LoRA significantly reduces step count.
+
+Flux also supports a universal ControlNet union model that covers `line_art`, `soft_edge`, `canny_edge`, `depth`, `pose`, and `blur`/tile modes.
+
+### Flux Kontext (`flux_k`)
+
+An edit model released by Black Forest Labs. Unlike generation models, Kontext takes an input image and modifies it based on text instructions.
+
+| Property | Value |
+|----------|-------|
+| Text encoders | `clip_l`, `t5` |
+| Is edit model | Yes |
+| CFG scale | No |
+| Turbo LoRA | Yes (shared with Flux) |
+
+**Use case:** Targeted image edits via natural language instructions (e.g., "change the hat to red", "add sunglasses").
+
+### Flux 2 Klein 4B (`flux2_4b`) and 9B (`flux2_9b`)
+
+Successors to Flux 1 with improved detail quality. The "Klein" variants are optimized for consumer GPUs. Instruction-based editing is built into the main model.
+
+| Property | Value |
+|----------|-------|
+| Text encoders (4B) | `qwen_3_4b` |
+| Text encoders (9B) | `qwen_3_8b` |
+| Latent compression | 16× |
+| Is edit model | No (but `supports_edit = True`) |
+| Outpaint LoRA | Yes (`flux2_4b` only) |
+
+**Use case:** High-quality generation with instruction-following edit capabilities. The 4B variant runs on 8–12 GB VRAM; the 9B requires more. The 9B must be downloaded manually from HuggingFace.
+
+### Chroma (`chroma`)
+
+A Flux-derived architecture with a T5-only text encoder. Limited support; community-driven.
+
+| Property | Value |
+|----------|-------|
+| Text encoders | `t5` |
+| Limited support | Yes |
+
+## Qwen-Based Models
+
+A family of models using Qwen vision-language models as text encoders. They have strong Chinese and English language understanding.
+
+### Qwen (`qwen`)
+
+| Property | Value |
+|----------|-------|
+| Text encoders | `qwen` (Qwen 2.5 VL 7B) |
+| Inpaint ControlNet | Yes |
+| Universal ControlNet | Yes |
+
+### Qwen Edit (`qwen_e`), Qwen Edit Plus (`qwen_e_p`)
+
+Instruction-following edit models. `qwen_e_p` corresponds to newer checkpoint releases (filenames containing `2509` or `2511`).
+
+| Property | Value |
+|----------|-------|
+| Is edit model | Yes |
+
+### Qwen Layered (`qwen_l`)
+
+A layered variant that uses a specialized VAE (`qwen_image_layered_vae`).
+
+<Note>
+Qwen models have limited support. See the [Qwen Image discussion](https://github.com/Acly/krita-ai-diffusion/discussions/2081) for current status.
+</Note>
+
+## Z-Image (`zimage`)
+
+A medium-sized diffusion model positioned between Flux 1 and Flux 2 4B. The "Turbo" variant produces convincing realistic images with good Chinese and English text understanding.
+
+| Property | Value |
+|----------|-------|
+| Text encoders | `qwen_3_4b` |
+| Inpaint ControlNet | Yes |
+| Universal ControlNet | Yes (model patch) |
+| Typical VRAM | 8–16 GB |
+
+**Use case:** Realistic image generation with good multilingual support. A "Base" variant (not in the managed installer) supports a wider variety of styles.
+
+## Architecture Capabilities Summary
+
+| Architecture | Regions | LCM | Clip Skip | CFG | Edit |
+|---|---|---|---|---|---|
+| `sd15` | Yes | Yes | Yes | Yes | No |
+| `sdxl` | Yes | Yes | Yes | Yes | No |
+| `illu` / `illu_v` | Yes | Yes | Yes | Yes | No |
+| `flux` | No | No | No | No | No |
+| `flux_k` | No | No | No | No | Yes |
+| `flux2_4b` / `flux2_9b` | No | No | No | No | Supported |
+| `zimage` | No | No | No | Yes | No |
+| `qwen_e` / `qwen_e_p` / `qwen_l` | No | No | No | Yes | Yes |
+
+## Resource Kinds
+
+Each architecture uses a specific set of companion resources:
+
+| Kind | Description |
+|------|-------------|
+| `checkpoint` | Diffusion checkpoint (the base model file) |
+| `text_encoder` | Text encoder (CLIP, T5, Qwen) |
+| `vae` | Image encoder/decoder (VAE) |
+| `controlnet` | ControlNet guidance model |
+| `clip_vision` | CLIP Vision encoder for IP-Adapter |
+| `ip_adapter` | IP-Adapter reference model |
+| `lora` | Low-Rank Adaptation weight file |
+| `model_patch` | Model patch (used by Z-Image ControlNet) |
+| `upscaler` | Super-resolution upscale model |
+| `inpaint` | Dedicated inpaint model (MAT, Fooocus) |
+| `embedding` | Textual embedding |
+| `preprocessor` | ControlNet image preprocessor |

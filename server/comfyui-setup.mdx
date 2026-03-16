@@ -1,0 +1,134 @@
+---
+title: "Custom ComfyUI server"
+description: "Connect Krita AI Diffusion to an existing ComfyUI installation, including required custom nodes and connection settings."
+---
+
+This option connects the plugin to a ComfyUI server you manage yourself. The server can be running locally or on a remote machine.
+
+<Info>
+  If you are starting from scratch, the [local managed server](/server/local-server) option handles ComfyUI installation automatically. Use this option if you already have ComfyUI installed, use an AMD GPU, or want to connect to a remote server.
+</Info>
+
+## Required custom nodes
+
+The plugin requires the following custom node extensions to be installed in ComfyUI. Install them using [ComfyUI Manager](https://github.com/ltdrdata/ComfyUI-Manager) or by cloning each repository into the `custom_nodes` directory.
+
+<AccordionGroup>
+  <Accordion title="ControlNet Preprocessors" defaultOpen={true}>
+    **Repository**: [Fannovel16/comfyui_controlnet_aux](https://github.com/Fannovel16/comfyui_controlnet_aux)
+
+    **Folder**: `comfyui_controlnet_aux`
+
+    Provides preprocessors for ControlNet inputs including depth estimation, inpainting, and other image analysis nodes.
+
+    Required nodes: `InpaintPreprocessor`, `DepthAnythingV2Preprocessor`
+  </Accordion>
+
+  <Accordion title="IP-Adapter">
+    **Repository**: [cubiq/ComfyUI_IPAdapter_plus](https://github.com/cubiq/ComfyUI_IPAdapter_plus)
+
+    **Folder**: `ComfyUI_IPAdapter_plus`
+
+    Enables reference image, style transfer, composition transfer, and face swap features.
+
+    Required nodes: `IPAdapterModelLoader`, `IPAdapter`
+  </Accordion>
+
+  <Accordion title="External Tooling Nodes">
+    **Repository**: [Acly/comfyui-tooling-nodes](https://github.com/Acly/comfyui-tooling-nodes)
+
+    **Folder**: `comfyui-tooling-nodes`
+
+    Communication nodes used by the plugin to exchange images and data with ComfyUI efficiently.
+
+    Required nodes: `ETN_LoadImageCache`, `ETN_SaveImageCache`, `ETN_Translate`
+  </Accordion>
+
+  <Accordion title="Inpaint Nodes">
+    **Repository**: [Acly/comfyui-inpaint-nodes](https://github.com/Acly/comfyui-inpaint-nodes)
+
+    **Folder**: `comfyui-inpaint-nodes`
+
+    Custom inpainting nodes used for Fooocus inpainting, mask processing, and color matching.
+
+    Required nodes: `INPAINT_LoadFooocusInpaint`, `INPAINT_ShrinkMask`, `INPAINT_StabilizeMask`, `INPAINT_ColorMatch`
+  </Accordion>
+</AccordionGroup>
+
+## Optional custom nodes
+
+These nodes are not required but extend support for additional model formats. The plugin uses them automatically if they are present.
+
+<AccordionGroup>
+  <Accordion title="GGUF">
+    **Repository**: [city96/ComfyUI-GGUF](https://github.com/city96/ComfyUI-GGUF)
+
+    **Folder**: `ComfyUI-GGUF`
+
+    Adds support for loading `.gguf` quantized model files.
+
+    Nodes provided: `UnetLoaderGGUF`, `DualCLIPLoaderGGUF`
+  </Accordion>
+
+  <Accordion title="Nunchaku">
+    **Repository**: [nunchaku-tech/ComfyUI-nunchaku](https://github.com/nunchaku-tech/ComfyUI-nunchaku)
+
+    **Folder**: `ComfyUI-nunchaku`
+
+    Adds support for loading Nunchaku svdq quantized models.
+
+    Nodes provided: `NunchakuFluxDiTLoader`
+  </Accordion>
+</AccordionGroup>
+
+## Required models
+
+Some models are required for the plugin to function. The plugin will refuse to connect if they are missing. All models must be placed in the appropriate ComfyUI models subdirectory.
+
+Paths configured in `extra_model_paths.yml` are also supported — the plugin queries available models directly from the ComfyUI server.
+
+<Note>
+  At least one diffusion model checkpoint is also required. The plugin supports Stable Diffusion 1.5, SDXL, Illustrious, Flux, and Z-Image checkpoints.
+</Note>
+
+## Connection settings
+
+To connect the plugin to your ComfyUI server, open the configuration dialog, select **Custom Server**, and enter your connection details.
+
+| Setting | Default | Description |
+|---|---|---|
+| **Server URL** | `127.0.0.1:8188` | Address of the running ComfyUI server. |
+| **Authorization token** | _(empty)_ | API key if your ComfyUI server requires authentication. |
+
+### Connecting to a local server
+
+If ComfyUI is already running on your machine before Krita starts, the plugin will automatically attempt to connect to `127.0.0.1:8188`. No additional configuration is needed.
+
+### Connecting to a remote server
+
+Enter the full URL of the remote ComfyUI server, for example `http://192.168.1.10:8188` or a domain name. The server must be accessible from your machine and have all required custom nodes and models installed.
+
+<Warning>
+  When using a remote server over an untrusted network, ensure the connection is secured. ComfyUI does not encrypt traffic by default.
+</Warning>
+
+## Troubleshooting
+
+If the plugin reports missing resources after connecting, one or more required nodes or models were not found.
+
+<AccordionGroup>
+  <Accordion title="How to diagnose missing resources">
+    Open the configuration dialog and click **View Log files** to locate `client.log`. The log lists which models were found and the filename patterns the plugin searches for.
+
+    Model filenames must contain a matching pattern. Models may be placed in arbitrary subfolders — the plugin searches recursively. Files inside a `krita` subfolder are prioritized if multiple matches exist.
+  </Accordion>
+
+  <Accordion title="The plugin connects but reports missing nodes">
+    Verify all four required custom node extensions are installed in the `custom_nodes` directory of your ComfyUI installation and that ComfyUI loaded them without errors. Check the ComfyUI console output on startup for any import errors.
+  </Accordion>
+
+  <Accordion title="Where to get help">
+    - ComfyUI issues: [github.com/comfyanonymous/ComfyUI](https://github.com/comfyanonymous/ComfyUI) or [comfy.org](https://www.comfy.org)
+    - Plugin issues: [Discussions](https://github.com/Acly/krita-ai-diffusion/discussions), [Issues](https://github.com/Acly/krita-ai-diffusion/issues), or [Discord](https://discord.gg/pWyzHfHHhU)
+  </Accordion>
+</AccordionGroup>

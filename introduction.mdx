@@ -1,0 +1,102 @@
+---
+title: Generative AI for Krita
+description: Streamlined AI image generation integrated directly into your Krita painting workflow
+---
+
+<CardGroup cols={2}>
+  <Card title="Install the Plugin" icon="download" href="/installation">
+    Get up and running with the Krita AI Diffusion plugin in minutes
+  </Card>
+  <Card title="Server Setup" icon="server" href="/server/overview">
+    Choose between local managed server, custom ComfyUI, or cloud generation
+  </Card>
+  <Card title="User Guide" icon="book-open" href="/guide/basics">
+    Learn inpainting, live painting, ControlNet, regions, and more
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/reference/common-issues">
+    Common issues and solutions to get you back on track
+  </Card>
+</CardGroup>
+
+## What is Generative AI for Krita?
+
+Generative AI for Krita is a plugin that brings powerful AI image generation directly into [Krita](https://krita.org), the professional digital painting application. Instead of switching between separate tools, you can generate, inpaint, and refine images without leaving your painting workflow.
+
+The plugin connects to a [ComfyUI](https://github.com/comfyanonymous/ComfyUI) backend — either managed locally, a custom installation, or a cloud service — and gives you precise control over AI generation through Krita's native layer and selection tools.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Inpainting & Outpainting" icon="paintbrush">
+    Use Krita's selection tools to fill, expand, or remove parts of your image with generative fill
+  </Card>
+  <Card title="Live Painting" icon="wand-magic-sparkles">
+    See AI interpretations of your canvas in real time as you draw and paint
+  </Card>
+  <Card title="ControlNet" icon="sliders">
+    Guide generation with scribbles, line art, depth maps, pose vectors, and more
+  </Card>
+  <Card title="IP-Adapter" icon="images">
+    Use reference images to influence style, composition, or swap faces
+  </Card>
+  <Card title="Regions" icon="layer-group">
+    Assign individual text prompts to image areas defined by Krita layers
+  </Card>
+  <Card title="Upscaling" icon="expand">
+    Upscale images to 4K, 8K and beyond using tiled diffusion
+  </Card>
+  <Card title="Custom Workflows" icon="diagram-project">
+    Create and run your own ComfyUI workflows from within Krita
+  </Card>
+  <Card title="Multiple Models" icon="microchip">
+    Supports Flux, Stable Diffusion 1.5, XL, Illustrious, and edit models
+  </Card>
+</CardGroup>
+
+## Supported hardware
+
+<Note>
+  For local generation, a GPU with at least **6 GB VRAM** is recommended. Generation on CPU is possible but very slow.
+</Note>
+
+| Hardware | Support |
+|---|---|
+| NVIDIA GPU | Fully supported via CUDA (Windows/Linux) |
+| AMD GPU | Supported, may require custom ComfyUI setup |
+| Apple Silicon | Supported via MPS on macOS 14+ |
+| Intel XPU | Supported (Windows/Linux), may see performance issues |
+| CPU | Supported but very slow |
+
+## Getting started
+
+<Steps>
+  <Step title="Install Krita">
+    Download and install [Krita 5.2.0 or newer](https://krita.org/en/download/) for your platform.
+  </Step>
+  <Step title="Install the plugin">
+    Follow the [Plugin Installation Guide](/installation) to download and install the plugin in Krita.
+  </Step>
+  <Step title="Set up a server">
+    Choose your generation backend in the [Server Setup Guide](/server/overview): cloud service, local managed server, or custom ComfyUI.
+  </Step>
+  <Step title="Start generating">
+    Read the [Basics Guide](/guide/basics) to create your first AI-generated image.
+  </Step>
+</Steps>
+
+## Community & support
+
+<CardGroup cols={2}>
+  <Card title="Discord" icon="discord" href="https://discord.gg/pWyzHfHHhU">
+    Chat with other users and get help in real time
+  </Card>
+  <Card title="Discussions" icon="comments" href="https://github.com/Acly/krita-ai-diffusion/discussions">
+    Ask questions and share your work on GitHub
+  </Card>
+  <Card title="Report an issue" icon="bug" href="https://github.com/Acly/krita-ai-diffusion/issues">
+    Found a bug? Open an issue on GitHub
+  </Card>
+  <Card title="Releases" icon="tag" href="https://github.com/Acly/krita-ai-diffusion/releases">
+    See what's new in each release
+  </Card>
+</CardGroup>

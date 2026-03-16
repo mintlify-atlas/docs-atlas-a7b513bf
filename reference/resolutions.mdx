@@ -1,0 +1,156 @@
+---
+title: "Resolutions"
+description: "How the Krita AI Diffusion plugin handles image resolutions, scaling, and tiled generation"
+---
+
+Resolution handling in the plugin balances four competing requirements: the desired canvas resolution, the range a diffusion model was trained on, available GPU memory, and generation speed. This page documents the internal resolution pipeline.
+
+## Resolution Pipeline
+
+Every generation passes through a resolution pipeline defined in `resolution.py`. The pipeline produces a `ScaledExtent` — a named tuple containing four distinct resolution "spaces":
+
+```python
+class ScaledExtent(NamedTuple):
+    input: Extent    # resolution of the input image and mask
+    initial: Extent  # resolution for the initial generation pass
+    desired: Extent  # resolution for the high-res refinement pass
+    target: Extent   # target resolution in the canvas (may not be a multiple of 8)
+```
+
+The same four fields are also represented in the `ExtentInput` dataclass in `api.py`, which is the serializable form passed through the workflow system:
+
+```python
+@dataclass
+class ExtentInput:
+    input: Extent    # resolution of input image and mask
+    initial: Extent  # resolution for initial generation
+    desired: Extent  # resolution for high res refinement pass
+    target: Extent   # target resolution in canvas (may not be multiple of 8)
+```
+
+## Scale Modes
+
+The `ScaleMode` enum in `resolution.py` classifies how one resolution space maps to the next:
+
+| Value | Name | Description |
+|-------|------|-------------|
+| `0` | `none` | No scaling required; resolutions are identical |
+| `1` | `resize` | Simple bilinear/bicubic scaling (downscale, or very small upscale) |
+| `2` | `upscale_small` | Small upscale factor (less than 1.5×); uses latent upscaling |
+| `3` | `upscale_fast` | Upscale using a fast super-resolution model (OmniSR) |
+| `4` | `upscale_quality` | Upscale using a quality super-resolution model (HAT, NMKD) |
+
+The `ScaledExtent` exposes three computed scale mode properties:
+- `initial_scaling`: how the input is scaled to reach `initial` resolution
+- `refinement_scaling`: how `initial` is scaled to reach `desired` (triggers hires-fix when `upscale_small` or `upscale_quality`)
+- `target_scaling`: how `desired` is scaled to reach `target` canvas resolution
+
+## Checkpoint Resolution
+
+Each architecture has a preferred resolution range it was trained on. The `CheckpointResolution.compute()` function determines this range:
+
+| Architecture | Min size | Max size | Min pixels | Max pixels |
+|---|---|---|---|---|
+| SD 1.5 | 512 | 768 | 512² | 512×768 |
+| SDXL | 640 | 1280 | 800² | 1024² |
+| SD 3 | 512 | 1536 | 512² | 1536² |
+| Flux / Z-Image (inpaint) | 640 | 1280 | 512² | 1024² |
+| All others | 256 | 2048 | 512² | 2048² |
+
+You can override the checkpoint resolution per-style in Style settings → Advanced checkpoint configuration by setting a `preferred_resolution`. When set, the min and max sizes are `preferred_resolution ± 20%`.
+
+## Two-Pass Generation (Hires-Fix)
+
+When the desired resolution is significantly larger than the checkpoint's maximum, the plugin automatically uses a two-pass approach:
+
+1. **Initial pass**: Generate at checkpoint-native resolution (`initial == desired * max_scale`, rounded to a multiple of the latent compression factor).
+2. **Refinement pass**: Upscale the initial result to the desired resolution and run a low-strength img2img pass to add detail.
+
+This is triggered when `max_scale < 0.9` and any dimension of the desired extent exceeds `max_size`.
+
+<Note>
+Edit models (`flux_k`, `qwen_e`, `qwen_e_p`, `qwen_l`) always use a single pass — two-pass generation is disabled for them regardless of resolution.
+</Note>
+
+## Resolution Multiples
+
+All diffusion models require image dimensions to be exact multiples. The `multiple_of(value, multiple)` function in `image.py` rounds up to the nearest multiple.
+
+| Architecture | Required multiple (`latent_compression_factor`) |
+|---|---|
+| SD 1.5, SDXL, Flux, Illustrious, Chroma | 8 |
+| SD 3, Flux 2 Klein (4B and 9B) | 16 |
+
+<Tip>
+For best results, set your Krita canvas to a multiple of 64. This avoids any quality loss from rounding and also satisfies the requirements of all tiled operations.
+</Tip>
+
+## Performance Settings and Resolution
+
+Two `PerformanceSettings` fields directly affect generation resolution:
+
+### `resolution_multiplier` (default: `1.0`)
+
+Scales the canvas resolution before it enters the pipeline. A value of `0.5` on a 2000×2000 canvas generates at 1000×1000.
+
+The multiplier is applied in `apply_resolution_settings()` before checkpoint resolution constraints are evaluated.
+
+### `max_pixel_count` (default: `6` megapixels)
+
+Caps the total pixel count after the multiplier is applied. If the result exceeds `max_pixel_count × 10⁶`, the resolution is scaled down while preserving aspect ratio.
+
+| Canvas | Max pixels | Effective generation resolution |
+|--------|------------|----------------------------------|
+| 1000×800 (0.8 MP) | 1 MP | 1000×800 (unchanged) |
+| 2000×2000 (4 MP) | 1 MP | 1000×1000 |
+| 2000×1000 (2 MP) | 1 MP | ~1416×712 |
+
+## Batch Size
+
+Batch size is computed automatically in `compute_batch_size()` based on the generation resolution:
+
+```python
+def compute_batch_size(extent: Extent, min_size: int, max_batches: int):
+    desired_pixels = min_size * min_size * max_batches  # min_size = 512
+    requested_pixels = extent.width * extent.height
+    return max(1, min(max_batches, desired_pixels // requested_pixels))
+```
+
+The `batch_size` setting in `PerformanceSettings` sets `max_batches`. At higher resolutions, the effective batch size is automatically reduced to keep memory usage consistent.
+
+## Tiled Generation
+
+For upscaling large images, the plugin uses the `TileLayout` class in `resolution.py` to divide the image into overlapping tiles.
+
+```python
+class TileLayout:
+    image_extent: Extent   # full image size
+    tile_extent: Extent    # size of each individual tile
+    min_size: int          # minimum tile size requested
+    padding: int           # overlap between adjacent tiles (multiple of 8)
+    blending: int          # blend region width (padding // 16 * 8)
+    tile_count: Extent     # number of tiles in each dimension
+```
+
+Padding is computed from denoise strength: `padding = round(16 + 64 × strength)` (rounded to the nearest multiple). Adjacent tiles overlap by `padding` pixels on each side. The `blending` value determines how wide the feathered blend region is when stitching tiles back together.
+
+### Workflow Integration
+
+Tiled generation uses `WorkflowKind.upscale_tiled`. The number of passes is:
+
+```
+passes = 2 × max(1, tile_count_w × tile_count_h)
+```
+
+The upscale workspace ignores the `resolution_multiplier` and `max_pixel_count` performance settings — it always runs at full upscale target resolution.
+
+## Inpaint Reference Cropping
+
+The `get_inpaint_reference()` function in `resolution.py` handles a special case for outpainting: when the masked area covers an entire edge of the image (left, right, top, or bottom), it crops away the masked portion to provide a cleaner reference to the inpaint model. The threshold for this crop is that the remaining visible area must be at least 224 pixels wide/tall (matching the CLIP Vision encoder input size).
+
+## Context Area for Inpainting
+
+The `compute_bounds()` function determines how much surrounding context is included when inpainting:
+
+- **Full-strength inpaint / generate**: Adds padding of `max(canvas_longest_side / 16, mask_average_side / 2)` around the mask, with a minimum size of 512 pixels, rounded to the nearest multiple of 8, and optionally squared.
+- **Img2img inpaint (strength < 100%)**: Uses only the mask area as input, with no additional context.
